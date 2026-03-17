@@ -1,14 +1,20 @@
 ﻿cmake_minimum_required(VERSION 3.15)
 
-project(pokefirered LANGUAGES C)
+include(FetchContent)
 
+set(FETCHCONTENT_QUIET OFF)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "$<$<NOT:$<CONFIG:Debug>>:MultiThreaded>")
+
+project(pokefirered LANGUAGES C)
 
 add_executable(pokefirered "main.c")
 
-include(FetchContent)
-set(FETCHCONTENT_QUIET OFF)
 FetchContent_Declare(raylib URL "https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz")
+
+if(NOT WIN32)
+    set(PLATFORM DRM CACHE STRING "" FORCE)
+endif()
+
 FetchContent_MakeAvailable(raylib)
 
 target_link_libraries(pokefirered PRIVATE raylib)
