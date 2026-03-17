@@ -10,11 +10,6 @@ project(pokefirered LANGUAGES C)
 add_executable(pokefirered "main.c")
 
 FetchContent_Declare(raylib URL "https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz")
-
-if(NOT WIN32)
-    set(PLATFORM DRM CACHE STRING "" FORCE)
-endif()
-
 FetchContent_MakeAvailable(raylib)
 
 target_link_libraries(pokefirered PRIVATE raylib)
