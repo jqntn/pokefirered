@@ -6,6 +6,7 @@
 #include "pfr/demo.h"
 #include "pfr/renderer.h"
 #include "pfr/storage.h"
+#include "task.h"
 
 typedef union PfrAlignedStorage
 {
@@ -111,6 +112,7 @@ pfr_core_init(const char* save_path)
                      gPfrRuntimeState.save,
                      sizeof(gPfrRuntimeState.save));
 
+  ResetTasks();
   pfr_renderer_init();
   pfr_demo_boot();
 }
@@ -134,7 +136,7 @@ pfr_core_set_keys(uint16_t keys_held)
 void
 pfr_core_run_frame(void)
 {
-  pfr_demo_run_frame();
+  RunTasks();
   pfr_core_simulate_scanlines();
   pfr_renderer_render_frame();
   gPfrRuntimeState.frame_counter++;

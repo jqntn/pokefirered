@@ -22,7 +22,8 @@ set(PFR_CORE_SOURCES
     src/demo.c
     src/renderer.c
     src/storage.c
-    src/syscall.c)
+    src/syscall.c
+    src/task.c)
 
 add_library(pfr_core STATIC ${PFR_CORE_SOURCES})
 target_include_directories(pfr_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

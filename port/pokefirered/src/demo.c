@@ -5,6 +5,7 @@
 #include "gba/types.h"
 #include "pfr/core.h"
 #include "pfr/demo.h"
+#include "task.h"
 
 enum
 {
@@ -16,6 +17,9 @@ enum
 static int sSpriteX = 112;
 static int sSpriteY = 72;
 static bool sSpriteVisible = true;
+
+static void
+pfr_demo_task(u8 taskId);
 
 static u16
 pfr_rgb555(u8 r, u8 g, u8 b)
@@ -167,6 +171,10 @@ pfr_update_status(void)
 void
 pfr_demo_boot(void)
 {
+  sSpriteX = 112;
+  sSpriteY = 72;
+  sSpriteVisible = true;
+
   pfr_build_bg_tiles();
   pfr_build_bg_map();
   pfr_build_sprite_tiles();
@@ -179,6 +187,7 @@ pfr_demo_boot(void)
   REG_BG0VOFS = 0;
 
   gPfrRuntimeState.title_visible = true;
+  CreateTask(pfr_demo_task, 0);
   pfr_update_sprite_oam();
   pfr_update_status();
 }
@@ -224,4 +233,11 @@ pfr_demo_run_frame(void)
 
   pfr_update_sprite_oam();
   pfr_update_status();
+}
+
+static void
+pfr_demo_task(u8 taskId)
+{
+  (void)taskId;
+  pfr_demo_run_frame();
 }

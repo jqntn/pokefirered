@@ -7,6 +7,46 @@
 #include "pfr/audio.h"
 #include "pfr/core.h"
 #include "pfr/storage.h"
+#include "task.h"
+
+static int sTaskLog[8];
+static size_t sTaskLogCount;
+static int sFollowupState;
+
+static void
+test_task_priority_high(u8 taskId)
+{
+  sTaskLog[sTaskLogCount++] = 1;
+  DestroyTask(taskId);
+}
+
+static void
+test_task_priority_mid(u8 taskId)
+{
+  sTaskLog[sTaskLogCount++] = 2;
+  DestroyTask(taskId);
+}
+
+static void
+test_task_priority_low(u8 taskId)
+{
+  sTaskLog[sTaskLogCount++] = 3;
+  DestroyTask(taskId);
+}
+
+static void
+test_task_followup(u8 taskId)
+{
+  sFollowupState = 2;
+  DestroyTask(taskId);
+}
+
+static void
+test_task_switcher(u8 taskId)
+{
+  sFollowupState = 1;
+  SwitchTaskToFollowupFunc(taskId);
+}
 
 static void
 test_cpuset(void)
@@ -70,6 +110,45 @@ test_storage_roundtrip(void)
 }
 
 static void
+test_tasks(void)
+{
+  u8 taskId;
+  int marker = 1234;
+
+  ResetTasks();
+  sTaskLogCount = 0;
+  CreateTask(test_task_priority_low, 10);
+  CreateTask(test_task_priority_high, 1);
+  CreateTask(test_task_priority_mid, 5);
+  RunTasks();
+  assert(sTaskLogCount == 3);
+  assert(sTaskLog[0] == 1);
+  assert(sTaskLog[1] == 2);
+  assert(sTaskLog[2] == 3);
+  assert(GetTaskCount() == 0);
+
+  taskId = CreateTask(TaskDummy, 2);
+  PfrSetTaskPtr(taskId, 0, &marker);
+  assert(PfrGetTaskPtr(taskId, 0) == &marker);
+
+  PfrSetTaskCallback(taskId, 1, test_task_followup);
+  assert(PfrGetTaskCallback(taskId, 1) == test_task_followup);
+
+  sFollowupState = 0;
+  SetTaskFuncWithFollowupFunc(taskId, test_task_switcher, test_task_followup);
+  RunTasks();
+  assert(sFollowupState == 1);
+  RunTasks();
+  assert(sFollowupState == 2);
+  assert(GetTaskCount() == 0);
+
+  taskId = CreateTask(TaskDummy, 0);
+  SetWordTaskArg(taskId, 4, 0x11223344UL);
+  assert(GetWordTaskArg(taskId, 4) == 0x11223344UL);
+  DestroyTask(taskId);
+}
+
+static void
 test_core_and_audio(void)
 {
   PfrAudioState audio_state;
@@ -99,6 +178,7 @@ main(void)
   test_cpuset();
   test_decompression();
   test_storage_roundtrip();
+  test_tasks();
   test_core_and_audio();
   puts("pfr_smoke: ok");
   return 0;
