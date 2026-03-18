@@ -1,3 +1,7 @@
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,6 +91,7 @@ bool
 pfr_storage_load(const char* path, void* data, size_t size)
 {
   FILE* file = fopen(path, "rb");
+  size_t bytes_read;
 
   if (file == NULL) {
     memset(data, 0, size);
@@ -94,7 +99,13 @@ pfr_storage_load(const char* path, void* data, size_t size)
   }
 
   memset(data, 0, size);
-  fread(data, 1, size, file);
+
+  bytes_read = fread(data, 1, size, file);
+  if (bytes_read < size && ferror(file)) {
+    fclose(file);
+    return false;
+  }
+
   fclose(file);
   return true;
 }
