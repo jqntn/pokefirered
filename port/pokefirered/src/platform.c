@@ -265,7 +265,7 @@ pfr_run_windowed(const PfrOptions* options)
     ClearBackground(BLACK);
     DrawTexturePro(
       texture,
-      (Rectangle){ 0.0f, 0.0f, (float)DISPLAY_WIDTH, (float)-DISPLAY_HEIGHT },
+      (Rectangle){ 0.0f, 0.0f, (float)DISPLAY_WIDTH, (float)DISPLAY_HEIGHT },
       pfr_compute_target_rect(),
       (Vector2){ 0.0f, 0.0f },
       0.0f,
