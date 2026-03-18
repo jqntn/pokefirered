@@ -1,9 +1,13 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "dma3.h"
 #include "gba/io_reg.h"
+#include "gpu_regs.h"
+#include "main.h"
 #include "pfr/core.h"
 #include "pfr/demo.h"
+#include "pfr/main_runtime.h"
 #include "pfr/renderer.h"
 #include "pfr/storage.h"
 #include "task.h"
@@ -67,26 +71,35 @@ pfr_core_reset_memory(void)
   gPfrIntrVector = NULL;
   gPfrIntrCheck = 0;
   gPfrSoundInfoPtr = NULL;
-  REG_KEYINPUT = KEYS_MASK;
 }
 
 static void
 pfr_core_simulate_scanlines(void)
 {
+  u16 vcount_line = (u16)(REG_DISPSTAT >> 8);
   int scanline;
 
   for (scanline = 0; scanline < 228; scanline++) {
     REG_VCOUNT = (u16)scanline;
 
+    if ((REG_DISPSTAT & DISPSTAT_VCOUNT_INTR) != 0 && scanline == vcount_line) {
+      pfr_main_on_vcount();
+    }
+
+    REG_DISPSTAT |= DISPSTAT_HBLANK;
+    pfr_main_on_hblank();
+    REG_DISPSTAT &= (u16)~DISPSTAT_HBLANK;
+
     if (scanline >= DISPLAY_HEIGHT) {
-      REG_DISPSTAT |= DISPSTAT_VBLANK;
+      if ((REG_DISPSTAT & DISPSTAT_VBLANK) == 0) {
+        REG_DISPSTAT |= DISPSTAT_VBLANK;
+        pfr_main_on_vblank();
+      }
     } else {
       REG_DISPSTAT &= (u16)~DISPSTAT_VBLANK;
     }
   }
 
-  REG_IF = INTR_FLAG_VBLANK;
-  gPfrIntrCheck |= INTR_FLAG_VBLANK;
   REG_VCOUNT = 0;
   REG_DISPSTAT &= (u16)~DISPSTAT_VBLANK;
 }
@@ -112,7 +125,10 @@ pfr_core_init(const char* save_path)
                      gPfrRuntimeState.save,
                      sizeof(gPfrRuntimeState.save));
 
+  InitGpuRegManager();
+  pfr_main_init();
   ResetTasks();
+  ClearDma3Requests();
   pfr_renderer_init();
   pfr_demo_boot();
 }
@@ -121,22 +137,22 @@ void
 pfr_core_shutdown(void)
 {
   pfr_core_flush_save();
+  pfr_main_shutdown();
   pfr_renderer_shutdown();
 }
 
 void
 pfr_core_set_keys(uint16_t keys_held)
 {
-  gPfrRuntimeState.keys_pressed =
-    (u16)(keys_held & ~gPfrRuntimeState.keys_held);
-  gPfrRuntimeState.keys_held = keys_held;
-  REG_KEYINPUT = (u16)(KEYS_MASK & ~keys_held);
+  pfr_main_set_raw_keys(keys_held);
 }
 
 void
 pfr_core_run_frame(void)
 {
-  RunTasks();
+  pfr_main_run_callbacks();
+  gPfrRuntimeState.keys_held = gMain.heldKeys;
+  gPfrRuntimeState.keys_pressed = gMain.newKeys;
   pfr_core_simulate_scanlines();
   pfr_renderer_render_frame();
   gPfrRuntimeState.frame_counter++;

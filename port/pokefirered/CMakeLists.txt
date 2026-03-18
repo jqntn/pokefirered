@@ -19,7 +19,10 @@ option(POKEFIRERED_USE_SYSTEM_RAYLIB "Use a preinstalled raylib package" OFF)
 set(PFR_CORE_SOURCES
     src/audio.c
     src/core.c
+    src/dma3.c
     src/demo.c
+    src/gpu_regs.c
+    src/main_runtime.c
     src/renderer.c
     src/storage.c
     src/syscall.c

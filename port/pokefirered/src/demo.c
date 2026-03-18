@@ -3,6 +3,7 @@
 
 #include "gba/io_reg.h"
 #include "gba/types.h"
+#include "main.h"
 #include "pfr/core.h"
 #include "pfr/demo.h"
 #include "task.h"
@@ -18,6 +19,8 @@ static int sSpriteX = 112;
 static int sSpriteY = 72;
 static bool sSpriteVisible = true;
 
+static void
+pfr_demo_main_callback(void);
 static void
 pfr_demo_task(u8 taskId);
 
@@ -138,7 +141,7 @@ pfr_refresh_palette(void)
 static void
 pfr_update_sprite_oam(void)
 {
-  struct OamData* oam = (struct OamData*)gPfrOam;
+  struct OamData* oam = gMain.oamBuffer;
 
   memset(oam, 0, sizeof(struct OamData) * 128);
   oam[0].y = (u32)(sSpriteVisible ? sSpriteY : 200);
@@ -188,6 +191,7 @@ pfr_demo_boot(void)
 
   gPfrRuntimeState.title_visible = true;
   CreateTask(pfr_demo_task, 0);
+  SetMainCallback2(pfr_demo_main_callback);
   pfr_update_sprite_oam();
   pfr_update_status();
 }
@@ -195,35 +199,35 @@ pfr_demo_boot(void)
 void
 pfr_demo_run_frame(void)
 {
-  if ((gPfrRuntimeState.keys_held & DPAD_LEFT) != 0 && sSpriteX > 0) {
+  if ((gMain.heldKeys & DPAD_LEFT) != 0 && sSpriteX > 0) {
     sSpriteX--;
   }
 
-  if ((gPfrRuntimeState.keys_held & DPAD_RIGHT) != 0 &&
+  if ((gMain.heldKeys & DPAD_RIGHT) != 0 &&
       sSpriteX < DISPLAY_WIDTH - PFR_SPRITE_SIZE) {
     sSpriteX++;
   }
 
-  if ((gPfrRuntimeState.keys_held & DPAD_UP) != 0 && sSpriteY > 0) {
+  if ((gMain.heldKeys & DPAD_UP) != 0 && sSpriteY > 0) {
     sSpriteY--;
   }
 
-  if ((gPfrRuntimeState.keys_held & DPAD_DOWN) != 0 &&
+  if ((gMain.heldKeys & DPAD_DOWN) != 0 &&
       sSpriteY < DISPLAY_HEIGHT - PFR_SPRITE_SIZE) {
     sSpriteY++;
   }
 
-  if ((gPfrRuntimeState.keys_pressed & A_BUTTON) != 0) {
+  if ((gMain.newKeys & A_BUTTON) != 0) {
     gPfrRuntimeState.save[0]++;
     gPfrRuntimeState.save_dirty = true;
     pfr_refresh_palette();
   }
 
-  if ((gPfrRuntimeState.keys_pressed & B_BUTTON) != 0) {
+  if ((gMain.newKeys & B_BUTTON) != 0) {
     sSpriteVisible = !sSpriteVisible;
   }
 
-  if ((gPfrRuntimeState.keys_pressed & START_BUTTON) != 0) {
+  if ((gMain.newKeys & START_BUTTON) != 0) {
     gPfrRuntimeState.save[1]++;
     gPfrRuntimeState.save_dirty = true;
   }
@@ -233,6 +237,12 @@ pfr_demo_run_frame(void)
 
   pfr_update_sprite_oam();
   pfr_update_status();
+}
+
+static void
+pfr_demo_main_callback(void)
+{
+  RunTasks();
 }
 
 static void

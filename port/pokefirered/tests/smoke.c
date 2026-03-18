@@ -2,16 +2,23 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "dma3.h"
 #include "gba/io_reg.h"
 #include "gba/syscall.h"
+#include "gpu_regs.h"
+#include "main.h"
 #include "pfr/audio.h"
 #include "pfr/core.h"
+#include "pfr/main_runtime.h"
 #include "pfr/storage.h"
 #include "task.h"
 
 static int sTaskLog[8];
 static size_t sTaskLogCount;
 static int sFollowupState;
+static int sMainLog[4];
+static size_t sMainLogCount;
+static int sVBlankCount;
 
 static void
 test_task_priority_high(u8 taskId)
@@ -46,6 +53,114 @@ test_task_switcher(u8 taskId)
 {
   sFollowupState = 1;
   SwitchTaskToFollowupFunc(taskId);
+}
+
+static void
+test_main_callback1(void)
+{
+  sMainLog[sMainLogCount++] = 1;
+}
+
+static void
+test_main_callback2(void)
+{
+  sMainLog[sMainLogCount++] = 2;
+}
+
+static void
+test_main_vblank(void)
+{
+  sVBlankCount++;
+}
+
+static void
+test_dma3(void)
+{
+  const u16 src16[] = { 1, 2, 3, 4, 5, 6 };
+  u16 copy16[PFR_ARRAY_COUNT(src16)] = { 0 };
+  u16 fill16[6] = { 0 };
+  u32 fill32[4] = { 0 };
+  s16 request;
+
+  ClearDma3Requests();
+  REG_VCOUNT = 225;
+
+  request = RequestDma3Copy(src16, copy16, sizeof(src16), DMA3_16BIT);
+  assert(request >= 0);
+  assert(WaitDma3Request(request) == -1);
+  ProcessDma3Requests();
+  assert(WaitDma3Request(request) == -1);
+  assert(copy16[0] == 0);
+
+  REG_VCOUNT = 160;
+  ProcessDma3Requests();
+  assert(memcmp(src16, copy16, sizeof(src16)) == 0);
+  assert(WaitDma3Request(request) == 0);
+
+  request = RequestDma3Fill(0x1357, fill16, sizeof(fill16), DMA3_16BIT);
+  assert(request >= 0);
+  ProcessDma3Requests();
+  assert(fill16[0] == 0x1357);
+  assert(fill16[5] == 0x1357);
+  assert(WaitDma3Request(request) == 0);
+
+  request = RequestDma3Fill(0x11223344, fill32, sizeof(fill32), DMA3_32BIT);
+  assert(request >= 0);
+  ProcessDma3Requests();
+  assert(fill32[0] == 0x11223344U);
+  assert(fill32[3] == 0x11223344U);
+  assert(WaitDma3Request(-1) == 0);
+
+  memset(copy16, 0, sizeof(copy16));
+  Dma3CopyLarge16_(src16, copy16, sizeof(src16));
+  assert(memcmp(src16, copy16, sizeof(src16)) == 0);
+}
+
+static void
+test_gpu_regs(void)
+{
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  InitGpuRegManager();
+
+  REG_VCOUNT = 0;
+  REG_DISPCNT = 0;
+  SetGpuReg(REG_OFFSET_BG0HOFS, 123);
+  assert(GetGpuReg(REG_OFFSET_BG0HOFS) == 123);
+  assert(REG_BG0HOFS == 0);
+  CopyBufferedValuesToGpuRegs();
+  assert(REG_BG0HOFS == 123);
+
+  SetGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_BG0_ON | DISPCNT_OBJ_ON);
+  CopyBufferedValuesToGpuRegs();
+  assert((GetGpuReg(REG_OFFSET_DISPCNT) & (DISPCNT_BG0_ON | DISPCNT_OBJ_ON)) ==
+         (DISPCNT_BG0_ON | DISPCNT_OBJ_ON));
+  assert((REG_DISPCNT & (DISPCNT_BG0_ON | DISPCNT_OBJ_ON)) ==
+         (DISPCNT_BG0_ON | DISPCNT_OBJ_ON));
+
+  ClearGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_OBJ_ON);
+  CopyBufferedValuesToGpuRegs();
+  assert((GetGpuReg(REG_OFFSET_DISPCNT) & DISPCNT_OBJ_ON) == 0);
+
+  REG_VCOUNT = 161;
+  SetGpuReg(REG_OFFSET_BG0VOFS, 77);
+  assert(REG_BG0VOFS == 77);
+
+  REG_VCOUNT = 0;
+  REG_DISPCNT = 0;
+  SetGpuReg_ForcedBlank(REG_OFFSET_BG1VOFS, 55);
+  assert(REG_BG1VOFS == 55);
+
+  EnableInterrupts(INTR_FLAG_VBLANK | INTR_FLAG_HBLANK);
+  assert(REG_IE == (INTR_FLAG_VBLANK | INTR_FLAG_HBLANK));
+  CopyBufferedValuesToGpuRegs();
+  assert((REG_DISPSTAT & (DISPSTAT_VBLANK_INTR | DISPSTAT_HBLANK_INTR)) ==
+         (DISPSTAT_VBLANK_INTR | DISPSTAT_HBLANK_INTR));
+
+  DisableInterrupts(INTR_FLAG_HBLANK);
+  assert(REG_IE == INTR_FLAG_VBLANK);
+  CopyBufferedValuesToGpuRegs();
+  assert((REG_DISPSTAT & (DISPSTAT_VBLANK_INTR | DISPSTAT_HBLANK_INTR)) ==
+         DISPSTAT_VBLANK_INTR);
 }
 
 static void
@@ -149,6 +264,47 @@ test_tasks(void)
 }
 
 static void
+test_main_runtime(void)
+{
+  u32 vblankCounter = 0;
+  struct OamData* oam = (struct OamData*)gPfrOam;
+
+  pfr_main_init();
+  sMainLogCount = 0;
+  sVBlankCount = 0;
+
+  gMain.callback1 = test_main_callback1;
+  SetMainCallback2(test_main_callback2);
+  SetVBlankCallback(test_main_vblank);
+  SetVBlankCounter1Ptr(&vblankCounter);
+
+  pfr_main_set_raw_keys(DPAD_UP | A_BUTTON);
+  pfr_main_run_callbacks();
+  assert(sMainLogCount == 2);
+  assert(sMainLog[0] == 1);
+  assert(sMainLog[1] == 2);
+  assert(gMain.heldKeys == (DPAD_UP | A_BUTTON));
+  assert(gMain.newKeys == (DPAD_UP | A_BUTTON));
+  assert(gMain.newAndRepeatedKeys == (DPAD_UP | A_BUTTON));
+
+  memset(gMain.oamBuffer, 0, sizeof(gMain.oamBuffer));
+  memset(oam, 0xFF, sizeof(gMain.oamBuffer));
+  gMain.oamBuffer[0].x = 17;
+  gMain.oamBuffer[0].y = 23;
+  pfr_main_on_vblank();
+  assert(sVBlankCount == 1);
+  assert(vblankCounter == 1);
+  assert(oam[0].x == 17);
+  assert(oam[0].y == 23);
+
+  pfr_main_set_raw_keys(DPAD_UP | A_BUTTON);
+  pfr_main_run_callbacks();
+  assert(gMain.newKeys == 0);
+
+  pfr_main_shutdown();
+}
+
+static void
 test_core_and_audio(void)
 {
   PfrAudioState audio_state;
@@ -177,8 +333,11 @@ main(void)
 {
   test_cpuset();
   test_decompression();
+  test_dma3();
+  test_gpu_regs();
   test_storage_roundtrip();
   test_tasks();
+  test_main_runtime();
   test_core_and_audio();
   puts("pfr_smoke: ok");
   return 0;
