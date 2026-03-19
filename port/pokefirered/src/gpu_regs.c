@@ -122,7 +122,9 @@ SetGpuReg(u8 regOffset, u16 value)
       }
     }
 
-    sGpuRegWaitingList[i] = regOffset;
+    if (i < PFR_GPU_REG_BUF_SIZE) {
+      sGpuRegWaitingList[i] = regOffset;
+    }
     sGpuRegBufferLocked = FALSE;
   }
 }

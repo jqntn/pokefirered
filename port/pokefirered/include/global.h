@@ -45,7 +45,7 @@
 /* ---- INCBIN / preproc stubs -------------------------------------------- */
 #define _(x) (x)
 #define __(x) (x)
-#define INCBIN(...) { 0 }
+#define INCBIN(...) { 0, 0, 0, 0 }
 #define INCBIN_U8 INCBIN
 #define INCBIN_U16 INCBIN
 #define INCBIN_U32 INCBIN
