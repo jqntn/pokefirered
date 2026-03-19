@@ -336,23 +336,33 @@ int
 main(void)
 {
   printf("pfr_smoke: starting tests...\n");
+  fflush(stdout);
   test_cpuset();
   printf("pfr_smoke: test_cpuset ok\n");
+  fflush(stdout);
   test_decompression();
   printf("pfr_smoke: test_decompression ok\n");
+  fflush(stdout);
   test_dma3();
   printf("pfr_smoke: test_dma3 ok\n");
+  fflush(stdout);
   test_gpu_regs();
   printf("pfr_smoke: test_gpu_regs ok\n");
+  fflush(stdout);
   test_storage_roundtrip();
   printf("pfr_smoke: test_storage_roundtrip ok\n");
+  fflush(stdout);
   test_tasks();
   printf("pfr_smoke: test_tasks ok\n");
+  fflush(stdout);
   test_main_runtime();
   printf("pfr_smoke: test_main_runtime ok\n");
+  fflush(stdout);
   test_core_and_audio();
   printf("pfr_smoke: test_core_and_audio ok\n");
+  fflush(stdout);
 
   printf("pfr_smoke: all tests passed!\n");
+  fflush(stdout);
   return 0;
 }
