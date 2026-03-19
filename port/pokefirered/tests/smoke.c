@@ -292,7 +292,7 @@ test_main_runtime(void)
   assert(gMain.newAndRepeatedKeys == (DPAD_UP | A_BUTTON));
 
   memset(gMain.oamBuffer, 0, sizeof(gMain.oamBuffer));
-  memset(oam, 0xFF, sizeof(gMain.oamBuffer));
+  memset(oam, 0xFF, PFR_OAM_SIZE);
   gMain.oamBuffer[0].x = 17;
   gMain.oamBuffer[0].y = 23;
   pfr_main_on_vblank();

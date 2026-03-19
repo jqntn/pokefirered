@@ -244,7 +244,7 @@ pfr_main_on_vblank(void)
   ProcessDma3Requests();
 
   if (!gMain.oamLoadDisabled) {
-    memcpy(gPfrOam, gMain.oamBuffer, sizeof(gMain.oamBuffer));
+    memcpy(gPfrOam, gMain.oamBuffer, PFR_OAM_SIZE);
   }
 
   gMain.vblankCounter2++;

@@ -32,6 +32,10 @@ pfr_storage_write_file(const char* path, const void* data, size_t size)
 bool
 pfr_storage_default_path(char* buffer, size_t buffer_size)
 {
+  if (buffer_size > 0) {
+    buffer[0] = '\0';
+  }
+
   char executable_path[PFR_MAX_PATH];
   char* separator = NULL;
 
