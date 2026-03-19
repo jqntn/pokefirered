@@ -143,9 +143,9 @@ pfr_core_init(const char* save_path, PfrBootMode boot_mode)
   if (boot_mode == PFR_BOOT_DEMO) {
     pfr_demo_boot();
   } else if (boot_mode == PFR_BOOT_SANDBOX) {
-    // pfr_sandbox_boot();
+    pfr_sandbox_boot();
   } else {
-    // pfr_game_boot();
+    pfr_game_boot();
   }
 }
 
