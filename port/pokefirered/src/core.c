@@ -7,6 +7,7 @@
 #include "main.h"
 #include "pfr/core.h"
 #include "pfr/demo.h"
+#include "pfr/sandbox.h"
 #include "pfr/main_runtime.h"
 #include "pfr/renderer.h"
 #include "pfr/storage.h"

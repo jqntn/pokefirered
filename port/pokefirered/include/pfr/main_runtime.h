@@ -16,9 +16,6 @@ pfr_main_on_hblank(void);
 void
 pfr_main_on_vcount(void);
 void
-void
 pfr_game_boot(void);
-void
-pfr_sandbox_boot(void);
 
 #endif

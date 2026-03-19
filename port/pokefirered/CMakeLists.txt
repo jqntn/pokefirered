@@ -25,6 +25,7 @@ set(PFR_CORE_SOURCES
     src/main_runtime.c
     src/renderer.c
     src/storage.c
+    src/sandbox.c
     src/syscall.c
     src/task.c)
 

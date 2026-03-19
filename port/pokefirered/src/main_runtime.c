@@ -254,11 +254,6 @@ pfr_main_on_vblank(void)
 }
 
 void
-pfr_sandbox_boot(void)
-{
-}
-
-void
 pfr_game_boot(void)
 {
 }
