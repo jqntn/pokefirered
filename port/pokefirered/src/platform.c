@@ -5,6 +5,7 @@
 #include <raylib.h>
 
 #include "gba/io_reg.h"
+#include "gba/defines.h"
 #include "pfr/audio.h"
 #include "pfr/core.h"
 

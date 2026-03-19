@@ -26,6 +26,7 @@ set(PFR_CORE_SOURCES
     src/renderer.c
     src/storage.c
     src/sandbox.c
+    src/stubs.c
     src/syscall.c
     src/task.c)
 
@@ -60,7 +61,13 @@ set(PFR_GAME_SOURCES
     ../../src/string_util.c
     ../../src/text.c
     ../../src/strings.c
-    ../../src/intro.c)
+    ../../src/intro.c
+    ../../src/bg.c
+    ../../src/window.c
+    ../../src/palette.c
+    ../../src/sprite.c
+    ../../src/math_util.c
+    ../../src/decompress.c)
 
 add_library(pfr_game OBJECT ${PFR_GAME_SOURCES})
 
