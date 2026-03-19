@@ -10,7 +10,6 @@
 
 #include "constants/global.h"
 #include "gba/types.h"
-#include "sprite.h"
 
 /* Minimal struct definitions needed by global.h's SaveBlock types. */
 
