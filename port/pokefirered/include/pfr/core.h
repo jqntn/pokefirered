@@ -30,8 +30,15 @@ extern void* gPfrIntrVector;
 extern volatile u16 gPfrIntrCheck;
 extern void* gPfrSoundInfoPtr;
 
+typedef enum PfrBootMode
+{
+  PFR_BOOT_NORMAL,
+  PFR_BOOT_DEMO,
+  PFR_BOOT_SANDBOX
+} PfrBootMode;
+
 void
-pfr_core_init(const char* save_path);
+pfr_core_init(const char* save_path, PfrBootMode boot_mode);
 void
 pfr_core_shutdown(void);
 void

@@ -14,6 +14,8 @@ typedef struct PfrOptions
   bool quit_on_title;
   uint32_t frame_limit;
   const char* save_path;
+  bool boot_demo;
+  bool boot_sandbox;
 } PfrOptions;
 
 static bool
@@ -39,6 +41,8 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
   options->quit_on_title = false;
   options->frame_limit = 0;
   options->save_path = NULL;
+  options->boot_demo = false;
+  options->boot_sandbox = false;
 
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--headless") == 0) {
@@ -57,6 +61,10 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
       }
 
       options->save_path = argv[++i];
+    } else if (strcmp(argv[i], "--demo") == 0) {
+      options->boot_demo = true;
+    } else if (strcmp(argv[i], "--sandbox") == 0) {
+      options->boot_sandbox = true;
     } else {
       fprintf(stderr, "unknown argument: %s\n", argv[i]);
       return false;
@@ -305,7 +313,13 @@ pfr_platform_main(int argc, char** argv)
     return 2;
   }
 
-  pfr_core_init(options.save_path);
+  if (options.boot_demo) {
+    pfr_core_init(options.save_path, PFR_BOOT_DEMO);
+  } else if (options.boot_sandbox) {
+    pfr_core_init(options.save_path, PFR_BOOT_SANDBOX);
+  } else {
+    pfr_core_init(options.save_path, PFR_BOOT_NORMAL);
+  }
 
   if (options.headless) {
     pfr_run_headless(&options);

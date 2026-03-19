@@ -314,7 +314,7 @@ test_core_and_audio(void)
   PfrAudioState audio_state;
   int16_t samples[256] = { 0 };
 
-  pfr_core_init("pfr_smoke_core.sav");
+  pfr_core_init("pfr_smoke_core.sav", PFR_BOOT_NORMAL);
   pfr_core_set_keys(A_BUTTON | DPAD_RIGHT);
   pfr_core_run_frame();
   assert(pfr_core_frame_checksum() != 0);

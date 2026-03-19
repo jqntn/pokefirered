@@ -149,7 +149,7 @@ else()
 endif()
 
 add_test(NAME pfr_smoke COMMAND pfr_smoke)
-add_test(NAME pfr_headless_boot COMMAND pokefirered --headless --frames 3 --quit-on-title)
+add_test(NAME pfr_headless_boot COMMAND pokefirered --demo --headless --frames 3 --quit-on-title)
 
 add_executable(pfr_integration tests/integration.c)
 target_include_directories(pfr_integration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)

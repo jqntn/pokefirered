@@ -252,3 +252,13 @@ pfr_main_on_vblank(void)
   INTR_CHECK |= INTR_FLAG_VBLANK;
   gMain.intrCheck |= INTR_FLAG_VBLANK;
 }
+
+void
+pfr_sandbox_boot(void)
+{
+}
+
+void
+pfr_game_boot(void)
+{
+}
