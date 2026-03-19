@@ -58,7 +58,8 @@ set(PFR_GAME_SOURCES
     ../../src/malloc.c
     ../../src/string_util.c
     ../../src/text.c
-    ../../src/strings.c)
+    ../../src/strings.c
+    ../../src/intro.c)
 
 add_library(pfr_game OBJECT ${PFR_GAME_SOURCES})
 
