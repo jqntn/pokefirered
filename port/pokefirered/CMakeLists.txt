@@ -79,6 +79,14 @@ target_compile_definitions(
   PRIVATE MODERN=1 FIRERED ENGLISH NDEBUG _CRT_SECURE_NO_WARNINGS)
 
 if(NOT MSVC)
+  target_compile_options(pfr_game PRIVATE -Wno-pedantic
+                                          -Wno-missing-field-initializers
+                                          -Wno-unknown-escape-sequence
+                                          -Wno-array-bounds
+                                          -Wno-unused-parameter
+                                          -Wno-unused-function
+                                          -Wno-unused-but-set-parameter
+                                          -Wno-strict-prototypes)
   target_link_libraries(pfr_game PRIVATE m)
 endif()
 
