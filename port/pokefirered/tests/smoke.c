@@ -335,14 +335,24 @@ test_core_and_audio(void)
 int
 main(void)
 {
+  printf("pfr_smoke: starting tests...\n");
   test_cpuset();
+  printf("pfr_smoke: test_cpuset ok\n");
   test_decompression();
+  printf("pfr_smoke: test_decompression ok\n");
   test_dma3();
+  printf("pfr_smoke: test_dma3 ok\n");
   test_gpu_regs();
+  printf("pfr_smoke: test_gpu_regs ok\n");
   test_storage_roundtrip();
+  printf("pfr_smoke: test_storage_roundtrip ok\n");
   test_tasks();
+  printf("pfr_smoke: test_tasks ok\n");
   test_main_runtime();
+  printf("pfr_smoke: test_main_runtime ok\n");
   test_core_and_audio();
-  puts("pfr_smoke: ok");
+  printf("pfr_smoke: test_core_and_audio ok\n");
+
+  printf("pfr_smoke: all tests passed!\n");
   return 0;
 }
