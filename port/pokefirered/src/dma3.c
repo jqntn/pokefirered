@@ -1,6 +1,5 @@
-#include <string.h>
-
 #include "dma3.h"
+#include <string.h>
 
 enum
 {

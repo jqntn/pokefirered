@@ -1,9 +1,9 @@
-#include <string.h>
-
-#include "dma3.h"
 #include "gba/defines.h"
 #include "gba/io_reg.h"
 #include "gba/syscall.h"
+#include <string.h>
+
+#include "dma3.h"
 #include "gpu_regs.h"
 #include "main.h"
 #include "pfr/core.h"

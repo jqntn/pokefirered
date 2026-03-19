@@ -1,10 +1,11 @@
 #include <math.h>
-#include <string.h>
 
 #include "gba/defines.h"
 #include "gba/flash_internal.h"
 #include "gba/io_reg.h"
 #include "gba/syscall.h"
+#include <string.h>
+
 #include "pfr/core.h"
 
 u16 gFlashNumRemainingBytes = 0;

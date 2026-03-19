@@ -1,8 +1,8 @@
-#include <stdint.h>
-#include <string.h>
-
 #include "gba/defines.h"
 #include "task.h"
+
+#include <stdint.h>
+#include <string.h>
 
 typedef struct PfrTaskSidecar
 {

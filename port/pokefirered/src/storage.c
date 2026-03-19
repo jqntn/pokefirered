@@ -1,3 +1,6 @@
+#include "pfr/common.h"
+#include "pfr/storage.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,9 +11,6 @@
 #include <limits.h>
 #include <unistd.h>
 #endif
-
-#include "pfr/common.h"
-#include "pfr/storage.h"
 
 static bool
 pfr_storage_write_file(const char* path, const void* data, size_t size)

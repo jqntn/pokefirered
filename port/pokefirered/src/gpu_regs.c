@@ -1,4 +1,5 @@
 #include "gpu_regs.h"
+#include <stdbool.h>
 
 enum
 {

@@ -1,8 +1,7 @@
-#include <string.h>
-
 #include "gba/defines.h"
 #include "gba/io_reg.h"
 #include "gba/types.h"
+#include <string.h>
 #include "pfr/common.h"
 #include "pfr/renderer.h"
 

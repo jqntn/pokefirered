@@ -1,11 +1,11 @@
+#include "gba/io_reg.h"
+#include "gba/defines.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <raylib.h>
 
-#include "gba/io_reg.h"
-#include "gba/defines.h"
 #include "pfr/audio.h"
 #include "pfr/core.h"
 

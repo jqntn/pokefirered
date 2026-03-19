@@ -1,8 +1,8 @@
+#include "gba/io_reg.h"
+#include "gba/types.h"
 #include <stdio.h>
 #include <string.h>
 
-#include "gba/io_reg.h"
-#include "gba/types.h"
 #include "main.h"
 #include "pfr/core.h"
 #include "pfr/demo.h"

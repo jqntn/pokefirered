@@ -1,6 +1,6 @@
-#include "global.h"
 #include "gba/gba.h"
 #include "pfr/stubs.h"
+#include "global.h"
 
 #include "gba/types.h"
 #include "gba/m4a_internal.h"
