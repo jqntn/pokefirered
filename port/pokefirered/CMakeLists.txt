@@ -85,7 +85,12 @@ if(MSVC)
                                          /wd4267 /wd4305 /wd4146)
 else()
   target_compile_options(pfr_game PRIVATE -Wall -Wextra -Wno-pedantic
-                                         -Wno-missing-field-initializers)
+                                         -Wno-missing-field-initializers
+                                         -Wno-unknown-escape-sequence
+                                         -Wno-array-bounds
+                                         -Wno-unused-parameter
+                                         -Wno-unused-function
+                                         -Wno-unused-but-set-parameter)
   target_link_libraries(pfr_game PRIVATE m)
 endif()
 
