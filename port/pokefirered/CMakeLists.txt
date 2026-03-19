@@ -32,7 +32,12 @@ add_library(pfr_core STATIC ${PFR_CORE_SOURCES})
 target_include_directories(
   pfr_core
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include  # Port headers (shadow originals)
-         ${CMAKE_CURRENT_SOURCE_DIR}/../../include)  # Original repo headers
+)
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(pfr_core PUBLIC -idirafter ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+else()
+  target_include_directories(pfr_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+endif()
 target_compile_definitions(
   pfr_core PUBLIC $<$<BOOL:${POKEFIRERED_HEADLESS}>:PFR_DEFAULT_HEADLESS=1>)
 
@@ -61,7 +66,12 @@ add_library(pfr_game STATIC ${PFR_GAME_SOURCES})
 target_include_directories(
   pfr_game
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+)
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(pfr_game PRIVATE -idirafter ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+else()
+  target_include_directories(pfr_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+endif()
 
 target_compile_definitions(
   pfr_game
