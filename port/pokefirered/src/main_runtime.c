@@ -33,10 +33,6 @@ const char RomHeaderSoftwareVersion = 0;
 
 IntrFunc gIntrTable[PFR_INTR_COUNT] = { 0 };
 
-struct SaveBlock1* gSaveBlock1Ptr = NULL;
-struct SaveBlock2* gSaveBlock2Ptr = NULL;
-struct PokemonStorage* gPokemonStoragePtr = NULL;
-
 static void
 pfr_main_read_keys(void)
 {
