@@ -60,7 +60,7 @@ set(PFR_GAME_SOURCES
     ../../src/text.c
     ../../src/strings.c)
 
-add_library(pfr_game STATIC ${PFR_GAME_SOURCES})
+add_library(pfr_game OBJECT ${PFR_GAME_SOURCES})
 
 # Port headers first (shadow originals), then original repo headers.
 target_include_directories(
