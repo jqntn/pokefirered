@@ -114,5 +114,5 @@ void DrawSpindaSpots(u16 species, u32 personality, u8 *dest, bool8 isFrontPic) {
 }
 
 u8 gDecompressionBuffer[0x4000]; // 16KB buffer
-void * gMonFrontPicTable[1];
-void * gMonBackPicTable[1];
+const struct CompressedSpriteSheet gMonFrontPicTable[1] = {0};
+const struct CompressedSpriteSheet gMonBackPicTable[1] = {0};
