@@ -29,7 +29,10 @@ set(PFR_CORE_SOURCES
     src/task.c)
 
 add_library(pfr_core STATIC ${PFR_CORE_SOURCES})
-target_include_directories(pfr_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(
+  pfr_core
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include  # Port headers (shadow originals)
+         ${CMAKE_CURRENT_SOURCE_DIR}/../../include)  # Original repo headers
 target_compile_definitions(
   pfr_core PUBLIC $<$<BOOL:${POKEFIRERED_HEADLESS}>:PFR_DEFAULT_HEADLESS=1>)
 
@@ -40,6 +43,38 @@ else()
   target_compile_options(pfr_core PRIVATE -Wall -Wextra -Werror -Wpedantic)
   target_link_libraries(pfr_core PRIVATE m)
 endif()
+
+# --------------------------------------------------------------------------
+# pfr_game: original game source files compiled through the port shim headers
+# --------------------------------------------------------------------------
+
+set(PFR_GAME_SOURCES ../../src/random.c ../../src/malloc.c)
+
+add_library(pfr_game STATIC ${PFR_GAME_SOURCES})
+
+# Port headers first (shadow originals), then original repo headers.
+target_include_directories(
+  pfr_game
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+
+target_compile_definitions(
+  pfr_game
+  PRIVATE MODERN=1 FIRERED ENGLISH NDEBUG _CRT_SECURE_NO_WARNINGS)
+
+if(MSVC)
+  # Original game code uses GNU extensions (zero-length arrays, etc.)
+  # so we use /W3 instead of /W4 and disable specific warnings.
+  target_compile_options(pfr_game PRIVATE /W3 /wd4200 /wd4201 /wd4214 /wd4244
+                                         /wd4267 /wd4305)
+else()
+  target_compile_options(pfr_game PRIVATE -Wall -Wextra -Wno-pedantic
+                                         -Wno-missing-field-initializers)
+  target_link_libraries(pfr_game PRIVATE m)
+endif()
+
+# Link pfr_game into pfr_core so all downstream targets get both.
+target_link_libraries(pfr_core PUBLIC pfr_game)
 
 if(POKEFIRERED_BUILD_ASSET_TOOLS)
   add_executable(
@@ -100,6 +135,19 @@ endif()
 
 add_test(NAME pfr_smoke COMMAND pfr_smoke)
 add_test(NAME pfr_headless_boot COMMAND pokefirered --headless --frames 3 --quit-on-title)
+
+add_executable(pfr_integration tests/integration.c)
+target_include_directories(pfr_integration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(pfr_integration PRIVATE pfr_core)
+
+if(MSVC)
+  target_compile_definitions(pfr_integration PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(pfr_integration PRIVATE /W4 /WX)
+else()
+  target_compile_options(pfr_integration PRIVATE -Wall -Wextra -Werror -Wpedantic)
+endif()
+
+add_test(NAME pfr_integration COMMAND pfr_integration)
 
 if(WIN32)
   set(PFR_CLANG_FORMAT
