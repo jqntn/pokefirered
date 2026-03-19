@@ -43,7 +43,7 @@ if(MSVC)
   target_compile_definitions(pfr_core PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(pfr_core PRIVATE /W4 /WX)
 else()
-  target_compile_options(pfr_core PRIVATE -Wall -Wextra -Werror -Wpedantic)
+  target_compile_options(pfr_core PRIVATE -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes)
   target_link_libraries(pfr_core PRIVATE m)
 endif()
 
