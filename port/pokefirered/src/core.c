@@ -27,8 +27,16 @@ typedef union PfrSmallStorage
 typedef union PfrIoStorage
 {
   uint8_t bytes[PFR_IO_SIZE];
+
   uint32_t alignment;
 } PfrIoStorage;
+
+#include "global.h"
+
+struct SaveBlock1 gSaveBlock1;
+struct SaveBlock2 gSaveBlock2;
+struct SaveBlock1* gSaveBlock1Ptr = &gSaveBlock1;
+struct SaveBlock2* gSaveBlock2Ptr = &gSaveBlock2;
 
 static union
 {

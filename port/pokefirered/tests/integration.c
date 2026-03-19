@@ -63,11 +63,27 @@ test_malloc_alloc_free(void)
   Free(p1);
 }
 
+#include "string_util.h"
+
+static void
+test_string_util(void)
+{
+  u8 buffer[32];
+  const u8 testString[] = { 0xBB, 0xCC, 0xDD, 0xFF }; /* "Poké" */
+
+  assert(StringLength(testString) == 3);
+
+  StringCopy(buffer, testString);
+  assert(buffer[0] == 0xBB);
+  assert(buffer[3] == 0xFF);
+}
+
 int
 main(void)
 {
   test_random();
   test_malloc_alloc_free();
+  test_string_util();
   puts("pfr_integration: ok");
   return 0;
 }

@@ -48,7 +48,12 @@ endif()
 # pfr_game: original game source files compiled through the port shim headers
 # --------------------------------------------------------------------------
 
-set(PFR_GAME_SOURCES ../../src/random.c ../../src/malloc.c)
+set(PFR_GAME_SOURCES 
+    ../../src/random.c 
+    ../../src/malloc.c
+    ../../src/string_util.c
+    ../../src/text.c
+    ../../src/strings.c)
 
 add_library(pfr_game STATIC ${PFR_GAME_SOURCES})
 
@@ -66,7 +71,7 @@ if(MSVC)
   # Original game code uses GNU extensions (zero-length arrays, etc.)
   # so we use /W3 instead of /W4 and disable specific warnings.
   target_compile_options(pfr_game PRIVATE /W3 /wd4200 /wd4201 /wd4214 /wd4244
-                                         /wd4267 /wd4305)
+                                         /wd4267 /wd4305 /wd4146)
 else()
   target_compile_options(pfr_game PRIVATE -Wall -Wextra -Wno-pedantic
                                          -Wno-missing-field-initializers)
