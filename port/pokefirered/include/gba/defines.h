@@ -33,19 +33,19 @@ struct SoundInfo;
 #define INTR_CHECK gPfrIntrCheck
 #define INTR_VECTOR gPfrIntrVector
 
-#define EWRAM_START ((uintptr_t)gPfrEwram)
+#define EWRAM_START ((u8*)gPfrEwram)
 #define EWRAM_END (EWRAM_START + PFR_EWRAM_SIZE)
-#define IWRAM_START ((uintptr_t)gPfrIwram)
+#define IWRAM_START ((u8*)gPfrIwram)
 #define IWRAM_END (IWRAM_START + PFR_IWRAM_SIZE)
 
-#define PLTT ((uintptr_t)gPfrPltt)
+#define PLTT ((u8*)gPfrPltt)
 #define BG_PLTT PLTT
 #define BG_PLTT_SIZE 0x200
 #define OBJ_PLTT (PLTT + BG_PLTT_SIZE)
 #define OBJ_PLTT_SIZE 0x200
 #define PLTT_SIZE (BG_PLTT_SIZE + OBJ_PLTT_SIZE)
 
-#define VRAM ((uintptr_t)gPfrVram)
+#define VRAM ((u8*)gPfrVram)
 #define VRAM_SIZE PFR_VRAM_SIZE
 
 #define BG_VRAM VRAM
@@ -66,7 +66,7 @@ struct SoundInfo;
 #define OBJ_VRAM1 (void*)(VRAM + 0x14000)
 #define OBJ_VRAM1_SIZE 0x4000
 
-#define OAM ((uintptr_t)gPfrOam)
+#define OAM ((u8*)gPfrOam)
 #define OAM_SIZE PFR_OAM_SIZE
 
 #define ROM_HEADER_SIZE 0xC0

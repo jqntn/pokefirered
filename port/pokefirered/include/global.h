@@ -15,6 +15,7 @@
 
 #include "config.h"
 #include "gba/gba.h"
+#include "pfr/stubs.h"
 
 #include <string.h>
 

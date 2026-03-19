@@ -1,4 +1,7 @@
 #include "global.h"
+#include "gba/gba.h"
+#include "pfr/stubs.h"
+
 #include "gba/types.h"
 #include "gba/m4a_internal.h"
 #include "link_rfu.h"
@@ -27,6 +30,7 @@ void GameCubeMultiBoot_HandleSerialInterrupt(void) {}
 void GameCubeMultiBoot_Quit(void) {}
 void ResetSerial(void) {}
 void SerialCB(void) {}
+void SetSerialCallback(void (*cb)(void)) { (void)cb; }
 
 // Intro.c dependencies from game logic
 void Save_ResetSaveCounters(void) {}
@@ -40,8 +44,8 @@ void ResetBgPositions(void) {
     ChangeBgY(0, 0, 0); ChangeBgY(1, 0, 0); ChangeBgY(2, 0, 0); ChangeBgY(3, 0, 0);
 }
 
-void StartBlendTask(u8 eva_start, u8 evb_start, u8 eva_end, u8 evb_end, u8 ev_step, u8 priority) {
-    (void)eva_start; (void)evb_start; (void)eva_end; (void)evb_end; (void)ev_step; (void)priority;
+void StartBlendTask(s8 startY, s8 targetY, s8 deltaY, u8 delay, u8 submode, u32 selectedPalettes) {
+    (void)startY; (void)targetY; (void)deltaY; (void)delay; (void)submode; (void)selectedPalettes;
 }
 
 bool8 IsBlendTaskActive(void) {
@@ -54,7 +58,7 @@ bool8 FreeTempTileDataBuffersIfPossible(void) {
     return FALSE; 
 }
 
-void *DecompressAndCopyTileDataToVram(u8 bgId, const void *src, u32 size, u16 offset, u8 mode) {
+void DecompressAndCopyTileDataToVram(u8 bgId, const void *src, u16 size, u16 offset, u8 mode) {
     u32 sizeOut = 0;
     u8 *sizeAsBytes = (u8 *)&sizeOut;
     const u8 *srcAsBytes = (const u8*)src;
