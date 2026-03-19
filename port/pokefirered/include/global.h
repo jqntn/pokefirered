@@ -15,6 +15,7 @@
 
 #include "config.h"
 #include "gba/gba.h"
+
 #include <string.h>
 
 /* ---- Original repo constants ------------------------------------------- */
