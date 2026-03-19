@@ -30,7 +30,6 @@ void GameCubeMultiBoot_HandleSerialInterrupt(void) {}
 void GameCubeMultiBoot_Quit(void) {}
 void ResetSerial(void) {}
 void SerialCB(void) {}
-void SetSerialCallback(void (*cb)(void)) { (void)cb; }
 
 // Intro.c dependencies from game logic
 void Save_ResetSaveCounters(void) {}
@@ -58,7 +57,7 @@ bool8 FreeTempTileDataBuffersIfPossible(void) {
     return FALSE; 
 }
 
-void DecompressAndCopyTileDataToVram(u8 bgId, const void *src, u16 size, u16 offset, u8 mode) {
+void *DecompressAndCopyTileDataToVram(u8 bgId, const void *src, u32 size, u16 offset, u8 mode) {
     u32 sizeOut = 0;
     u8 *sizeAsBytes = (u8 *)&sizeOut;
     const u8 *srcAsBytes = (const u8*)src;
