@@ -169,9 +169,12 @@ file(
   GLOB_RECURSE PFR_FORMAT_FILES CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/tools/msvc/*.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/tools/msvc/include/*.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.c)
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.c
+  "${CMAKE_CURRENT_SOURCE_DIR}/tools/*.h;*.hpp;*.c;*.cpp")
+file(
+  GLOB PFR_FORMAT_FILES_TOP CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_SOURCE_DIR}/*.c)
+list(APPEND PFR_FORMAT_FILES ${PFR_FORMAT_FILES_TOP})
 
 add_custom_target(
   format-native

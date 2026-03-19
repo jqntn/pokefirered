@@ -253,7 +253,8 @@ pfr_main_on_vblank(void)
   gMain.intrCheck |= INTR_FLAG_VBLANK;
 }
 
-extern void CB2_InitCopyrightScreenAfterBootup(void);
+extern void
+CB2_InitCopyrightScreenAfterBootup(void);
 
 void
 pfr_game_boot(void)

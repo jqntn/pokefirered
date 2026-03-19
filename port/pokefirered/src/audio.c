@@ -1,6 +1,6 @@
+#include "pfr/audio.h"
 #include "gba/io_reg.h"
 #include <math.h>
-#include "pfr/audio.h"
 
 void
 pfr_audio_reset(PfrAudioState* audio_state)

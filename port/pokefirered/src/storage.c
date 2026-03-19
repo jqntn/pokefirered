@@ -1,5 +1,5 @@
-#include "pfr/common.h"
 #include "pfr/storage.h"
+#include "pfr/common.h"
 
 #include <stdio.h>
 #include <stdlib.h>

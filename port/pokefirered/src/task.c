@@ -1,5 +1,5 @@
-#include "gba/defines.h"
 #include "task.h"
+#include "gba/defines.h"
 
 #include <stdint.h>
 #include <string.h>
