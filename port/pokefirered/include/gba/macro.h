@@ -54,6 +54,9 @@
 
 #define DMA_FILL(dmaNum, value, dest, size, bit)                               \
   {                                                                            \
+    if (dmaNum == 3) {                                                         \
+      CpuFill##bit(value, dest, size);                                        \
+    }                                                                          \
     vu##bit tmp = (vu##bit)(value);                                            \
     DmaSet(dmaNum,                                                             \
            &tmp,                                                               \
@@ -70,13 +73,18 @@
   DMA_FILL(dmaNum, value, dest, size, 32)
 
 #define DMA_COPY(dmaNum, src, dest, size, bit)                                 \
-  DmaSet(                                                                      \
-    dmaNum,                                                                    \
-    src,                                                                       \
-    dest,                                                                      \
-    (DMA_ENABLE | DMA_START_NOW | DMA_##bit##BIT | DMA_SRC_INC | DMA_DEST_INC) \
-        << 16 |                                                                \
-      ((size) / (bit / 8)))
+  {                                                                            \
+    if (dmaNum == 3) {                                                         \
+      CpuCopy##bit(src, dest, size);                                           \
+    }                                                                          \
+    DmaSet(                                                                    \
+      dmaNum,                                                                  \
+      src,                                                                     \
+      dest,                                                                    \
+      (DMA_ENABLE | DMA_START_NOW | DMA_##bit##BIT | DMA_SRC_INC | DMA_DEST_INC) \
+          << 16 |                                                              \
+        ((size) / (bit / 8)));                                                 \
+  }
 
 #define DmaCopy16(dmaNum, src, dest, size) DMA_COPY(dmaNum, src, dest, size, 16)
 #define DmaCopy32(dmaNum, src, dest, size) DMA_COPY(dmaNum, src, dest, size, 32)
