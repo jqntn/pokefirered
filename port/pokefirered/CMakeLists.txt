@@ -78,19 +78,7 @@ target_compile_definitions(
   pfr_game
   PRIVATE MODERN=1 FIRERED ENGLISH NDEBUG _CRT_SECURE_NO_WARNINGS)
 
-if(MSVC)
-  # Original game code uses GNU extensions (zero-length arrays, etc.)
-  # so we use /W3 instead of /W4 and disable specific warnings.
-  target_compile_options(pfr_game PRIVATE /W3 /wd4200 /wd4201 /wd4214 /wd4244
-                                         /wd4267 /wd4305 /wd4146)
-else()
-  target_compile_options(pfr_game PRIVATE -Wall -Wextra -Wno-pedantic
-                                         -Wno-missing-field-initializers
-                                         -Wno-unknown-escape-sequence
-                                         -Wno-array-bounds
-                                         -Wno-unused-parameter
-                                         -Wno-unused-function
-                                         -Wno-unused-but-set-parameter)
+if(NOT MSVC)
   target_link_libraries(pfr_game PRIVATE m)
 endif()
 
