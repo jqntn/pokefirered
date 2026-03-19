@@ -9,7 +9,7 @@ void SerialCB(void);
 void SetSerialCallback(void (*cb)(void));
 
 /* Graphics / Blend Tasks */
-void StartBlendTask(s8 startY, s8 targetY, s8 deltaY, u8 delay, u8 submode, u32 selectedPalettes);
+void StartBlendTask(u8 eva_start, u8 evb_start, u8 eva_end, u8 evb_end, u8 ev_step, u8 priority);
 bool8 IsBlendTaskActive(void);
 
 #endif /* PFR_STUBS_H */
