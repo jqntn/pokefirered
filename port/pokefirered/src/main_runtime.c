@@ -7,6 +7,7 @@
 #include "gpu_regs.h"
 #include "main.h"
 #include "pfr/core.h"
+#include "pfr/dma.h"
 #include "pfr/main_runtime.h"
 
 #include "../../../include/constants/global.h"
@@ -75,6 +76,7 @@ pfr_main_init(void)
   sKeyRepeatContinueDelay = 5;
   sRawKeys = 0;
   sTrainerId = 0;
+  pfr_dma_reset();
   InitKeys();
   REG_KEYINPUT = KEYS_MASK;
 }
@@ -208,6 +210,8 @@ pfr_main_run_callbacks(void)
 void
 pfr_main_on_hblank(void)
 {
+  pfr_dma_on_hblank();
+
   if (gMain.hblankCallback != NULL) {
     gMain.hblankCallback();
   }

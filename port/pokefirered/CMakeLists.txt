@@ -19,6 +19,7 @@ option(POKEFIRERED_USE_SYSTEM_RAYLIB "Use a preinstalled raylib package" OFF)
 set(PFR_CORE_SOURCES
     src/audio.c
     src/core.c
+    src/dma.c
     src/dma3.c
     src/demo.c
     src/gpu_regs.c
@@ -63,6 +64,8 @@ set(PFR_GAME_SOURCES
     ../../src/palette.c
     ../../src/sprite.c
     ../../src/math_util.c
+    ../../src/trig.c
+    ../../src/scanline_effect.c
     ../../src/decompress.c)
 
 add_library(pfr_game OBJECT ${PFR_GAME_SOURCES})

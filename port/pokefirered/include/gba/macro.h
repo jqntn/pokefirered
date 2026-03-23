@@ -5,6 +5,7 @@
 
 #include "gba/io_reg.h"
 #include "gba/syscall.h"
+#include "pfr/dma.h"
 
 #define CPU_FILL(value, dest, size, bit)                                       \
   {                                                                            \
@@ -44,19 +45,10 @@
   CpuFastSet(src, dest, ((size) / (32 / 8) & 0x1FFFFF))
 
 #define DmaSet(dmaNum, src, dest, control)                                     \
-  {                                                                            \
-    vu32* dmaRegs = (vu32*)REG_ADDR_DMA##dmaNum;                               \
-    dmaRegs[0] = (vu32)(uintptr_t)(src);                                       \
-    dmaRegs[1] = (vu32)(uintptr_t)(dest);                                      \
-    dmaRegs[2] = (vu32)(control);                                              \
-    (void)dmaRegs[2];                                                          \
-  }
+  pfr_dma_set((dmaNum), (src), (dest), (control))
 
 #define DMA_FILL(dmaNum, value, dest, size, bit)                               \
   {                                                                            \
-    if (dmaNum == 3) {                                                         \
-      CpuFill##bit(value, dest, size);                                         \
-    }                                                                          \
     vu##bit tmp = (vu##bit)(value);                                            \
     DmaSet(dmaNum,                                                             \
            &tmp,                                                               \
@@ -74,9 +66,6 @@
 
 #define DMA_COPY(dmaNum, src, dest, size, bit)                                 \
   {                                                                            \
-    if (dmaNum == 3) {                                                         \
-      CpuCopy##bit(src, dest, size);                                           \
-    }                                                                          \
     DmaSet(dmaNum,                                                             \
            src,                                                                \
            dest,                                                               \
@@ -89,12 +78,6 @@
 #define DmaCopy16(dmaNum, src, dest, size) DMA_COPY(dmaNum, src, dest, size, 16)
 #define DmaCopy32(dmaNum, src, dest, size) DMA_COPY(dmaNum, src, dest, size, 32)
 
-#define DmaStop(dmaNum)                                                        \
-  {                                                                            \
-    vu16* dmaRegs = (vu16*)REG_ADDR_DMA##dmaNum;                               \
-    dmaRegs[5] &= ~(DMA_START_MASK | DMA_DREQ_ON | DMA_REPEAT);                \
-    dmaRegs[5] &= ~DMA_ENABLE;                                                 \
-    (void)dmaRegs[5];                                                          \
-  }
+#define DmaStop(dmaNum) pfr_dma_stop(dmaNum)
 
 #endif

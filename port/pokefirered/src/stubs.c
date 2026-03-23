@@ -41,10 +41,6 @@ m4aSongNumStart(u16 n)
 
 // Multiboot & Serial
 void
-ScanlineEffect_Stop(void)
-{
-}
-void
 GameCubeMultiBoot_Main(void)
 {
 }
@@ -188,7 +184,14 @@ LoadWordFromTwoHalfwords(u16* src)
 // Variables missing
 u8 gHeap[0x1C000]; // 112KB buffer as per original game
 u16 gSaveFileStatus = 0;
-const s16 gSineTable[256] = { 0 };
+u16 gBattle_BG0_X = 0;
+u16 gBattle_BG0_Y = 0;
+u16 gBattle_BG1_X = 0;
+u16 gBattle_BG1_Y = 0;
+u16 gBattle_BG2_X = 0;
+u16 gBattle_BG2_Y = 0;
+u16 gBattle_BG3_X = 0;
+u16 gBattle_BG3_Y = 0;
 const u32 gMultiBootProgram_PokemonColosseum_Start[1] = { 0 };
 
 // gfx utils missing
