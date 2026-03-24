@@ -16,6 +16,7 @@
 #include "dma3.h"
 #include "malloc.h"
 #include "new_menu_helpers.h"
+#include "pfr/core.h"
 #include "pfr/main_runtime.h"
 #include "random.h"
 #include "scanline_effect.h"
