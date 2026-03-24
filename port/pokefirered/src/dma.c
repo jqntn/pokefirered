@@ -1,4 +1,5 @@
 #include "pfr/dma.h"
+#include "pfr/core.h"
 
 #include <string.h>
 
@@ -24,16 +25,27 @@ static const u16 sPfrDmaInterruptFlags[4] = {
   INTR_FLAG_DMA3,
 };
 
+enum
+{
+  PFR_DMA_REGISTER_SIZE = sizeof(u32) * 3U,
+};
+
+static uint8_t*
+pfr_dma_reg_block(u8 dmaNum)
+{
+  return gPfrIo + REG_OFFSET_DMA0 + (size_t)dmaNum * PFR_DMA_REGISTER_SIZE;
+}
+
 static volatile u32*
 pfr_dma_regs(u8 dmaNum)
 {
-  return (volatile u32*)(REG_ADDR_DMA0 + dmaNum * 12U);
+  return (volatile u32*)(void*)pfr_dma_reg_block(dmaNum);
 }
 
 static volatile u16*
 pfr_dma_reg16(u8 dmaNum)
 {
-  return (volatile u16*)(REG_ADDR_DMA0 + dmaNum * 12U);
+  return (volatile u16*)(void*)pfr_dma_reg_block(dmaNum);
 }
 
 static u32
@@ -154,7 +166,7 @@ void
 pfr_dma_reset(void)
 {
   memset(sPfrDmaChannels, 0, sizeof(sPfrDmaChannels));
-  memset((void*)REG_ADDR_DMA0, 0, 4U * 12U);
+  memset(pfr_dma_reg_block(0), 0, 4U * PFR_DMA_REGISTER_SIZE);
 }
 
 void
