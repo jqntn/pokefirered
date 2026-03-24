@@ -3,6 +3,7 @@
 #endif
 
 #include <assert.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -34,6 +35,13 @@ pfr_hide_all_test_sprites(struct OamData* oam)
   for (i = 0; i < 128; i++) {
     oam[i].affineMode = ST_OAM_AFFINE_ERASE;
   }
+}
+
+static void
+test_oam_layout(void)
+{
+  assert(sizeof(struct OamData) == 8);
+  assert(offsetof(struct OamData, affineParam) == 6);
 }
 
 static void
@@ -486,6 +494,9 @@ int
 main(void)
 {
   printf("pfr_smoke: starting tests...\n");
+  fflush(stdout);
+  test_oam_layout();
+  printf("pfr_smoke: test_oam_layout ok\n");
   fflush(stdout);
   test_cpuset();
   printf("pfr_smoke: test_cpuset ok\n");
