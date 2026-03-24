@@ -5,6 +5,14 @@
 
 #include <raylib.h>
 
+#if defined(_MSC_VER)
+#define PFR_NORETURN __declspec(noreturn)
+#elif defined(__GNUC__) || defined(__clang__)
+#define PFR_NORETURN __attribute__((noreturn))
+#else
+#define PFR_NORETURN
+#endif
+
 typedef struct PfrColorPalette
 {
   Color* colors;
@@ -18,7 +26,7 @@ typedef struct PfrByteBuffer
   size_t capacity;
 } PfrByteBuffer;
 
-static void
+static PFR_NORETURN void
 pfr_fail(const char* message, const char* detail)
 {
   if (detail != NULL) {
@@ -267,7 +275,6 @@ pfr_load_palette(const char* path)
   }
 
   pfr_fail("unsupported palette input", path);
-  return (PfrColorPalette){ 0 };
 }
 
 static void
