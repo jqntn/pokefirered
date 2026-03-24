@@ -12,6 +12,7 @@ typedef struct PfrDmaChannel
   uintptr_t dest_base;
   uintptr_t src_current;
   uintptr_t dest_current;
+  u32 fixed_value;
   u32 count;
   u16 control;
   bool8 active;
@@ -174,6 +175,7 @@ pfr_dma_set(u8 dmaNum, const void* src, volatile void* dest, u32 control)
 {
   PfrDmaChannel* channel;
   volatile u32* regs;
+  size_t transfer_size;
 
   if (dmaNum >= 4) {
     return;
@@ -185,12 +187,22 @@ pfr_dma_set(u8 dmaNum, const void* src, volatile void* dest, u32 control)
   regs[2] = control;
 
   channel = &sPfrDmaChannels[dmaNum];
-  channel->src_base = (uintptr_t)src;
+  channel->control = (u16)(control >> 16);
+  channel->count = pfr_dma_count(dmaNum, control);
+  transfer_size =
+    (channel->control & DMA_32BIT) != 0 ? sizeof(u32) : sizeof(u16);
+  channel->fixed_value = 0;
+
+  if ((channel->control & DMA_SRC_FIXED) != 0 && src != NULL) {
+    memcpy(&channel->fixed_value, src, transfer_size);
+    channel->src_base = (uintptr_t)&channel->fixed_value;
+  } else {
+    channel->src_base = (uintptr_t)src;
+  }
+
   channel->dest_base = (uintptr_t)dest;
   channel->src_current = channel->src_base;
   channel->dest_current = channel->dest_base;
-  channel->count = pfr_dma_count(dmaNum, control);
-  channel->control = (u16)(control >> 16);
   channel->active = (channel->control & DMA_ENABLE) != 0;
 
   if (channel->active && (channel->control & DMA_START_MASK) == DMA_START_NOW) {

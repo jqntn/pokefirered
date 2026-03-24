@@ -66,7 +66,17 @@ if(MSVC)
   target_compile_definitions(pfr_core PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(pfr_core PRIVATE /W4 /WX)
 else()
-  target_compile_options(pfr_core PRIVATE -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes)
+  # The port and translated game code alias shared GBA buffers/registers
+  # through multiple view types, which GCC/Clang may miscompile under
+  # strict-aliasing optimizations on 64-bit hosts.
+  target_compile_options(
+    pfr_core
+    PRIVATE -Wall
+            -Wextra
+            -Werror
+            -Wpedantic
+            -Wno-strict-prototypes
+            -fno-strict-aliasing)
   target_link_libraries(pfr_core PRIVATE m)
 endif()
 
@@ -570,6 +580,7 @@ target_compile_definitions(
   PRIVATE MODERN=1 FIRERED ENGLISH NDEBUG _CRT_SECURE_NO_WARNINGS)
 
 if(NOT MSVC)
+  target_compile_options(pfr_game PRIVATE -fno-strict-aliasing)
   target_link_libraries(pfr_game PRIVATE m)
 endif()
 
@@ -583,7 +594,8 @@ if(MSVC)
   target_compile_definitions(pokefirered PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(pokefirered PRIVATE /W4 /WX)
 else()
-  target_compile_options(pokefirered PRIVATE -Wall -Wextra -Werror -Wpedantic)
+  target_compile_options(
+    pokefirered PRIVATE -Wall -Wextra -Werror -Wpedantic -fno-strict-aliasing)
 endif()
 
 enable_testing()
@@ -596,7 +608,8 @@ if(MSVC)
   target_compile_definitions(pfr_smoke PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(pfr_smoke PRIVATE /W4 /WX)
 else()
-  target_compile_options(pfr_smoke PRIVATE -Wall -Wextra -Werror -Wpedantic)
+  target_compile_options(
+    pfr_smoke PRIVATE -Wall -Wextra -Werror -Wpedantic -fno-strict-aliasing)
 endif()
 
 add_test(NAME pfr_smoke COMMAND pfr_smoke)
@@ -614,7 +627,8 @@ if(MSVC)
   target_compile_definitions(pfr_integration PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(pfr_integration PRIVATE /W4 /WX)
 else()
-  target_compile_options(pfr_integration PRIVATE -Wall -Wextra -Werror -Wpedantic)
+  target_compile_options(
+    pfr_integration PRIVATE -Wall -Wextra -Werror -Wpedantic -fno-strict-aliasing)
 endif()
 
 add_test(NAME pfr_integration COMMAND pfr_integration)

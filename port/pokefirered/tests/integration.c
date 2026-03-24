@@ -17,6 +17,7 @@
 #include "malloc.h"
 #include "new_menu_helpers.h"
 #include "pfr/core.h"
+#include "pfr/dma.h"
 #include "pfr/main_runtime.h"
 #include "random.h"
 #include "scanline_effect.h"
@@ -97,6 +98,52 @@ test_trig(void)
   assert(Cos(0, 256) == 256);
   assert(Sin2(90) == Q_4_12(1));
   assert(Cos2(180) == Q_4_12(-1));
+}
+
+static NOINLINE void
+test_queue_fixed_hblank_dma(u16 value)
+{
+  u16 tmp = value;
+
+  pfr_dma_set(0,
+              &tmp,
+              &REG_BG1HOFS,
+              ((u32)(DMA_ENABLE | DMA_START_HBLANK | DMA_REPEAT | DMA_16BIT |
+                     DMA_SRC_FIXED | DMA_DEST_FIXED)
+               << 16) |
+                1U);
+}
+
+static NOINLINE void
+test_clobber_hblank_dma_stack(void)
+{
+  volatile u8 scratch[1024];
+  size_t i;
+
+  for (i = 0; i < sizeof(scratch); i++) {
+    scratch[i] = (u8)i;
+  }
+}
+
+static void
+test_dma_fixed_source_lifetime(void)
+{
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  pfr_main_init();
+
+  test_queue_fixed_hblank_dma(0x1357);
+  test_clobber_hblank_dma_stack();
+  REG_VCOUNT = 0;
+  pfr_main_on_hblank();
+  assert(REG_BG1HOFS == 0x1357);
+
+  test_clobber_hblank_dma_stack();
+  REG_VCOUNT = 1;
+  pfr_main_on_hblank();
+  assert(REG_BG1HOFS == 0x1357);
+
+  DmaStop(0);
+  pfr_main_shutdown();
 }
 
 static void
@@ -228,6 +275,7 @@ main(void)
   test_malloc_alloc_free();
   test_string_util();
   test_trig();
+  test_dma_fixed_source_lifetime();
   test_scanline_effect();
   test_decompress_bg_tilemap_mode();
   test_decompress_tile_data_buffers_survive_dma();
