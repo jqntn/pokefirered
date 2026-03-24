@@ -10,8 +10,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "bg.h"
+#include "dma3.h"
 #include "global.h"
 #include "malloc.h"
+#include "new_menu_helpers.h"
 #include "pfr/main_runtime.h"
 #include "random.h"
 #include "scanline_effect.h"
@@ -144,6 +147,78 @@ test_scanline_effect(void)
   pfr_main_shutdown();
 }
 
+static void
+test_decompress_bg_tilemap_mode(void)
+{
+  static const struct BgTemplate sBgTemplate = {
+    .bg = 0,
+    .charBaseIndex = 0,
+    .mapBaseIndex = 31,
+    .screenSize = 0,
+    .paletteMode = 0,
+    .priority = 0,
+    .baseTile = 0,
+  };
+  static const u8 sCompressedTilemap[] = { 0x10, 0x04, 0x00, 0x00, 0x00,
+                                           0x34, 0x12, 0x00, 0x00 };
+  size_t mapOffset = 31U * BG_SCREEN_SIZE;
+
+  memset(gPfrVram, 0, BG_VRAM_SIZE);
+  ResetBgsAndClearDma3BusyFlags(FALSE);
+  InitBgsFromTemplates(0, &sBgTemplate, 1);
+  ShowBg(0);
+  ClearDma3Requests();
+
+  DecompressAndCopyTileDataToVram(0, sCompressedTilemap, 0, 0, 1);
+  ProcessDma3Requests();
+
+  assert(*(u16*)(gPfrVram + mapOffset) == 0x1234);
+  assert(*(u16*)gPfrVram == 0);
+}
+
+static void
+test_decompress_tile_data_buffers_survive_dma(void)
+{
+  static const struct BgTemplate sBgTemplate = {
+    .bg = 0,
+    .charBaseIndex = 0,
+    .mapBaseIndex = 31,
+    .screenSize = 0,
+    .paletteMode = 0,
+    .priority = 0,
+    .baseTile = 0,
+  };
+  static const u8 sCompressedTileA[] = {
+    0x10, 0x20, 0x00, 0x00, 0x00, 0x11, 0x11, 0x11, 0x11, 0x11,
+    0x11, 0x11, 0x11, 0x00, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+    0x11, 0x11, 0x00, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+    0x11, 0x00, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11
+  };
+  static const u8 sCompressedTileB[] = {
+    0x10, 0x20, 0x00, 0x00, 0x00, 0x22, 0x22, 0x22, 0x22, 0x22,
+    0x22, 0x22, 0x22, 0x00, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22,
+    0x22, 0x22, 0x00, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22,
+    0x22, 0x00, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22
+  };
+
+  memset(gPfrVram, 0, BG_VRAM_SIZE);
+  ResetBgsAndClearDma3BusyFlags(FALSE);
+  InitBgsFromTemplates(0, &sBgTemplate, 1);
+  ShowBg(0);
+  ClearDma3Requests();
+  ResetTempTileDataBuffers();
+
+  DecompressAndCopyTileDataToVram(0, sCompressedTileA, 0, 0, 0);
+  DecompressAndCopyTileDataToVram(0, sCompressedTileB, 0, 1, 0);
+  ProcessDma3Requests();
+
+  assert(gPfrVram[0x0000] == 0x11);
+  assert(gPfrVram[0x001F] == 0x11);
+  assert(gPfrVram[0x0020] == 0x22);
+  assert(gPfrVram[0x003F] == 0x22);
+  assert(FreeTempTileDataBuffersIfPossible() == FALSE);
+}
+
 int
 main(void)
 {
@@ -152,6 +227,8 @@ main(void)
   test_string_util();
   test_trig();
   test_scanline_effect();
+  test_decompress_bg_tilemap_mode();
+  test_decompress_tile_data_buffers_survive_dma();
   puts("pfr_integration: ok");
   return 0;
 }

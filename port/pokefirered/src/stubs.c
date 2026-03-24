@@ -16,6 +16,7 @@
 #include "link_rfu.h"
 #include "load_save.h"
 #include "m4a.h"
+#include "malloc.h"
 #include "mystery_gift_menu.h"
 #include "oak_speech.h"
 #include "pfr/core.h"
@@ -31,7 +32,25 @@ static bool8 sSePlaying;
 static bool8 sCryPlaying;
 static u16 sCurrentBgm;
 static u16 sCurrentSe;
+static u16 sTempTileDataBufferCursor;
+static void* sTempTileDataBuffers[32];
 static const u8 sEmptyPlaceholder[] = { EOS };
+
+static u16
+pfr_copy_decompressed_tile_data_to_vram(u8 bgId,
+                                        const void* src,
+                                        u16 size,
+                                        u16 offset,
+                                        u8 mode)
+{
+  switch (mode) {
+    case 1:
+      return LoadBgTilemap(bgId, src, size, offset);
+    case 0:
+    default:
+      return LoadBgTiles(bgId, src, size, offset);
+  }
+}
 
 struct MusicPlayerInfo gMPlayInfo_BGM = { 0 };
 struct MusicPlayerInfo gMPlayInfo_SE1 = { 0 };
@@ -252,11 +271,30 @@ IsBlendTaskActive(void)
 void
 ResetTempTileDataBuffers(void)
 {
+  int i;
+
+  for (i = 0; i < (int)NELEMS(sTempTileDataBuffers); i++) {
+    sTempTileDataBuffers[i] = NULL;
+  }
+
+  sTempTileDataBufferCursor = 0;
 }
 
 bool8
 FreeTempTileDataBuffersIfPossible(void)
 {
+  int i;
+
+  if (IsDma3ManagerBusyWithBgCopy()) {
+    return TRUE;
+  }
+
+  for (i = 0; i < sTempTileDataBufferCursor; i++) {
+    Free(sTempTileDataBuffers[i]);
+    sTempTileDataBuffers[i] = NULL;
+  }
+
+  sTempTileDataBufferCursor = 0;
   return FALSE;
 }
 
@@ -270,22 +308,31 @@ DecompressAndCopyTileDataToVram(u8 bgId,
   u32 sizeOut = 0;
   u8* sizeAsBytes = (u8*)&sizeOut;
   const u8* srcAsBytes = (const u8*)src;
+  void* ptr;
 
-  (void)mode;
+  if (sTempTileDataBufferCursor >= NELEMS(sTempTileDataBuffers)) {
+    return NULL;
+  }
 
   sizeAsBytes[0] = srcAsBytes[1];
   sizeAsBytes[1] = srcAsBytes[2];
   sizeAsBytes[2] = srcAsBytes[3];
   sizeAsBytes[3] = 0;
 
-  LZ77UnCompWram(src, gDecompressionBuffer);
+  ptr = Alloc(sizeOut);
+  if (ptr == NULL) {
+    return NULL;
+  }
+
+  LZ77UnCompWram(src, ptr);
 
   if (size == 0) {
     size = sizeOut;
   }
 
-  LoadBgTiles(bgId, gDecompressionBuffer, (u16)size, offset);
-  return NULL;
+  pfr_copy_decompressed_tile_data_to_vram(bgId, ptr, (u16)size, offset, mode);
+  sTempTileDataBuffers[sTempTileDataBufferCursor++] = ptr;
+  return ptr;
 }
 
 void
