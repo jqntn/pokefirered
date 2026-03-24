@@ -52,7 +52,6 @@ struct PlttData
     u16 unused_15:1;
 };
 
-#pragma pack(push, 1)
 struct OamData
 {
     /*0x00*/ u32 y:8;
@@ -71,7 +70,6 @@ struct OamData
              u16 paletteNum:4;
     /*0x06*/ u16 affineParam;
 };
-#pragma pack(pop)
 
 #define ST_OAM_HFLIP     0x08
 #define ST_OAM_VFLIP     0x10
