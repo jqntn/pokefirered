@@ -13,4 +13,4 @@
 struct ObjectEvent;
 struct ObjectEventTemplate;
 
-#endif /* PFR_GLOBAL_FIELDMAP_H */
+#endif

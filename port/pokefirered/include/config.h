@@ -54,4 +54,4 @@
 #define LOG_HANDLER_MGBA_PRINT 2
 #define LOG_HANDLER LOG_HANDLER_AGB_PRINT
 
-#endif /* PFR_CONFIG_H */
+#endif

@@ -13,4 +13,4 @@ struct Berry;
 struct BerryTree;
 struct EnigmaBerry;
 
-#endif /* PFR_GLOBAL_BERRY_H */
+#endif

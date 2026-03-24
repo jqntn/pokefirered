@@ -8,4 +8,4 @@
 
 #include "../../../include/random.h"
 
-#endif /* PFR_STUB_RANDOM_H */
+#endif

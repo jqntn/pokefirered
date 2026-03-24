@@ -16,6 +16,7 @@ typedef struct PfrRuntimeState
   bool save_dirty;
   bool quit_requested;
   bool title_visible;
+  bool main_menu_visible;
 } PfrRuntimeState;
 
 extern PfrRuntimeState gPfrRuntimeState;
@@ -33,6 +34,7 @@ extern void* gPfrSoundInfoPtr;
 typedef enum PfrBootMode
 {
   PFR_BOOT_NORMAL,
+  PFR_BOOT_FRONTEND,
   PFR_BOOT_DEMO,
   PFR_BOOT_SANDBOX
 } PfrBootMode;
@@ -53,6 +55,8 @@ bool
 pfr_core_should_quit(void);
 bool
 pfr_core_is_title_visible(void);
+bool
+pfr_core_is_main_menu_visible(void);
 const uint32_t*
 pfr_core_framebuffer(void);
 uint32_t

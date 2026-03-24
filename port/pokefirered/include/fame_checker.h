@@ -13,4 +13,4 @@
 #define NUM_FAME_CHECKER_ITEMS 16
 #endif
 
-#endif /* PFR_STUB_FAME_CHECKER_H */
+#endif

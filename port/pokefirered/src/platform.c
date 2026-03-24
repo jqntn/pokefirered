@@ -13,7 +13,10 @@ typedef struct PfrOptions
 {
   bool headless;
   bool quit_on_title;
+  bool quit_on_main_menu;
   uint32_t frame_limit;
+  uint32_t auto_press_start_frame;
+  bool auto_press_start;
   const char* save_path;
   bool boot_demo;
   bool boot_sandbox;
@@ -40,7 +43,10 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
 
   options->headless = false;
   options->quit_on_title = false;
+  options->quit_on_main_menu = false;
   options->frame_limit = 0;
+  options->auto_press_start_frame = 0;
+  options->auto_press_start = false;
   options->save_path = NULL;
   options->boot_demo = false;
   options->boot_sandbox = false;
@@ -50,11 +56,21 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
       options->headless = true;
     } else if (strcmp(argv[i], "--quit-on-title") == 0) {
       options->quit_on_title = true;
+    } else if (strcmp(argv[i], "--quit-on-main-menu") == 0) {
+      options->quit_on_main_menu = true;
     } else if (strcmp(argv[i], "--frames") == 0) {
       if (i + 1 >= argc || !pfr_parse_u32(argv[++i], &options->frame_limit)) {
         fprintf(stderr, "invalid --frames value\n");
         return false;
       }
+    } else if (strcmp(argv[i], "--auto-press-start-frame") == 0) {
+      if (i + 1 >= argc ||
+          !pfr_parse_u32(argv[++i], &options->auto_press_start_frame)) {
+        fprintf(stderr, "invalid --auto-press-start-frame value\n");
+        return false;
+      }
+
+      options->auto_press_start = true;
     } else if (strcmp(argv[i], "--save-path") == 0) {
       if (i + 1 >= argc) {
         fprintf(stderr, "missing --save-path value\n");
@@ -180,6 +196,19 @@ pfr_update_audio(AudioStream* stream, PfrAudioState* audio_state)
   }
 }
 
+static uint16_t
+pfr_keys_for_frame(const PfrOptions* options,
+                   uint32_t frame_index,
+                   uint16_t keys)
+{
+  if (options->auto_press_start &&
+      frame_index == options->auto_press_start_frame) {
+    keys |= START_BUTTON;
+  }
+
+  return keys;
+}
+
 static Rectangle
 pfr_compute_target_rect(void)
 {
@@ -216,7 +245,7 @@ pfr_run_headless(const PfrOptions* options)
   pfr_audio_reset(&audio_state);
 
   for (frame_index = 0; frame_index < frames; frame_index++) {
-    pfr_core_set_keys(0);
+    pfr_core_set_keys(pfr_keys_for_frame(options, frame_index, 0));
     pfr_core_run_frame();
     pfr_audio_generate(&audio_state,
                        samples,
@@ -225,6 +254,10 @@ pfr_run_headless(const PfrOptions* options)
                        gPfrRuntimeState.frame_counter);
 
     if (options->quit_on_title && pfr_core_is_title_visible()) {
+      break;
+    }
+
+    if (options->quit_on_main_menu && pfr_core_is_main_menu_visible()) {
       break;
     }
 
@@ -265,7 +298,8 @@ pfr_run_windowed(const PfrOptions* options)
   PlayAudioStream(stream);
 
   while (!WindowShouldClose()) {
-    pfr_core_set_keys(pfr_poll_keys());
+    pfr_core_set_keys(
+      pfr_keys_for_frame(options, frame_index, pfr_poll_keys()));
     pfr_core_run_frame();
     UpdateTexture(texture, pfr_core_framebuffer());
     pfr_update_audio(&stream, &audio_state);
@@ -289,6 +323,10 @@ pfr_run_windowed(const PfrOptions* options)
     }
 
     if (options->quit_on_title && pfr_core_is_title_visible()) {
+      break;
+    }
+
+    if (options->quit_on_main_menu && pfr_core_is_main_menu_visible()) {
       break;
     }
 
@@ -319,7 +357,7 @@ pfr_platform_main(int argc, char** argv)
   } else if (options.boot_sandbox) {
     pfr_core_init(options.save_path, PFR_BOOT_SANDBOX);
   } else {
-    pfr_core_init(options.save_path, PFR_BOOT_NORMAL);
+    pfr_core_init(options.save_path, PFR_BOOT_FRONTEND);
   }
 
   if (options.headless) {

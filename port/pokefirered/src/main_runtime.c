@@ -11,6 +11,11 @@
 #include "pfr/main_runtime.h"
 
 #include "../../../include/constants/global.h"
+#include "main_menu.h"
+#include "title_screen.h"
+
+void
+SetDefaultFontsPointer(void);
 
 enum
 {
@@ -95,6 +100,14 @@ AgbMain(void)
 void
 SetMainCallback2(MainCallback callback)
 {
+  if (callback == CB2_InitTitleScreen) {
+    gPfrRuntimeState.title_visible = true;
+    gPfrRuntimeState.main_menu_visible = false;
+  } else if (callback == CB2_InitMainMenu) {
+    gPfrRuntimeState.title_visible = false;
+    gPfrRuntimeState.main_menu_visible = true;
+  }
+
   gMain.callback2 = callback;
   gMain.state = 0;
 }
@@ -263,9 +276,23 @@ CB2_InitCopyrightScreenAfterBootup(void);
 void
 pfr_game_boot(void)
 {
+  SetDefaultFontsPointer();
   gMain.vblankCounter1 = 0;
   gMain.vblankCounter2 = 0;
   gMain.callback1 = NULL;
   gMain.callback2 = CB2_InitCopyrightScreenAfterBootup;
   gMain.state = 0;
+}
+
+void
+pfr_frontend_boot(void)
+{
+  SetDefaultFontsPointer();
+  gMain.vblankCounter1 = 0;
+  gMain.vblankCounter2 = 0;
+  gMain.callback1 = NULL;
+  gMain.callback2 = CB2_InitTitleScreen;
+  gMain.state = 0;
+  gPfrRuntimeState.title_visible = true;
+  gPfrRuntimeState.main_menu_visible = false;
 }

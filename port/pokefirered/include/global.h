@@ -242,4 +242,4 @@ extern struct SaveBlock2* gSaveBlock2Ptr;
 #include "global.fieldmap.h"
 #include "pokemon.h"
 
-#endif /* GUARD_GLOBAL_H */
+#endif

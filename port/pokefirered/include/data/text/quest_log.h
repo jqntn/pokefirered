@@ -1,0 +1,4 @@
+#ifndef PFR_DATA_TEXT_QUEST_LOG_H
+#define PFR_DATA_TEXT_QUEST_LOG_H
+
+#endif

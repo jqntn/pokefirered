@@ -3,5 +3,4 @@
 void
 pfr_sandbox_boot(void)
 {
-  // Sandbox entry point
 }

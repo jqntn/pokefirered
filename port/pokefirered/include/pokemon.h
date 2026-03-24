@@ -31,4 +31,4 @@ struct BattleTowerPokemon
 void
 DrawSpindaSpots(u16 species, u32 personality, u8* dest, bool8 isFrontPic);
 
-#endif /* PFR_STUB_POKEMON_H */
+#endif

@@ -795,4 +795,4 @@
 #define WAITCNT_AGB (0 << 15)
 #define WAITCNT_CGB (1 << 15)
 
-#endif // GUARD_GBA_IO_REG_H
+#endif

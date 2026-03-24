@@ -8,4 +8,4 @@
 
 #include "../../../include/malloc.h"
 
-#endif /* PFR_STUB_MALLOC_H */
+#endif

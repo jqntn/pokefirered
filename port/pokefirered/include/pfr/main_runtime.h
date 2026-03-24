@@ -20,5 +20,7 @@ pfr_main_on_vblank(void);
 
 void
 pfr_game_boot(void);
+void
+pfr_frontend_boot(void);
 
 #endif

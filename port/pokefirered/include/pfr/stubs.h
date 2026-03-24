@@ -3,7 +3,6 @@
 
 #include "gba/types.h"
 
-/* Serial / Link */
 void
 ResetSerial(void);
 void
@@ -11,7 +10,6 @@ SerialCB(void);
 void
 SetSerialCallback(void (*cb)(void));
 
-/* Graphics / Blend Tasks */
 void
 StartBlendTask(u8 eva_start,
                u8 evb_start,
@@ -22,4 +20,13 @@ StartBlendTask(u8 eva_start,
 bool8
 IsBlendTaskActive(void);
 
-#endif /* PFR_STUBS_H */
+u16
+pfr_stub_current_bgm(void);
+bool8
+pfr_stub_is_bgm_playing(void);
+bool8
+pfr_stub_take_se(u16* song_num);
+bool8
+pfr_stub_take_cry(void);
+
+#endif

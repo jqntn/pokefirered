@@ -5,9 +5,13 @@
 
 typedef struct PfrAudioState
 {
-  double phase;
+  double phase_a;
+  double phase_b;
   double gain;
   int sample_rate;
+  uint32_t bgm_step;
+  int se_samples_remaining;
+  int cry_samples_remaining;
 } PfrAudioState;
 
 void

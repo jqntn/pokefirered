@@ -142,6 +142,8 @@ pfr_core_init(const char* save_path, PfrBootMode boot_mode)
 
   if (boot_mode == PFR_BOOT_DEMO) {
     pfr_demo_boot();
+  } else if (boot_mode == PFR_BOOT_FRONTEND) {
+    pfr_frontend_boot();
   } else if (boot_mode == PFR_BOOT_SANDBOX) {
     pfr_sandbox_boot();
   } else {
@@ -204,6 +206,12 @@ bool
 pfr_core_is_title_visible(void)
 {
   return gPfrRuntimeState.title_visible;
+}
+
+bool
+pfr_core_is_main_menu_visible(void)
+{
+  return gPfrRuntimeState.main_menu_visible;
 }
 
 const uint32_t*
