@@ -14,6 +14,7 @@
 #include "pfr/audio.h"
 #include "pfr/core.h"
 #include "pfr/main_runtime.h"
+#include "pfr/renderer.h"
 #include "pfr/storage.h"
 #include "raylib.h"
 #include "task.h"
@@ -24,6 +25,16 @@ static int sFollowupState;
 static int sMainLog[4];
 static size_t sMainLogCount;
 static int sVBlankCount;
+
+static void
+pfr_hide_all_test_sprites(struct OamData* oam)
+{
+  int i;
+
+  for (i = 0; i < 128; i++) {
+    oam[i].affineMode = ST_OAM_AFFINE_ERASE;
+  }
+}
 
 static void
 test_task_priority_high(u8 taskId)
@@ -166,6 +177,126 @@ test_gpu_regs(void)
   CopyBufferedValuesToGpuRegs();
   assert((REG_DISPSTAT & (DISPSTAT_VBLANK_INTR | DISPSTAT_HBLANK_INTR)) ==
          DISPSTAT_VBLANK_INTR);
+}
+
+static void
+test_renderer_respects_obj_disable(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  uint32_t expectedBackdrop;
+  uint32_t expectedSprite;
+  const uint32_t* framebuffer;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[0x100 + 1] = 0x001F;
+  gPfrVram[0x10000] = 0x11;
+
+  oam[0].affineMode = ST_OAM_AFFINE_OFF;
+  oam[0].objMode = ST_OAM_OBJ_NORMAL;
+  oam[0].mosaic = FALSE;
+  oam[0].bpp = ST_OAM_4BPP;
+  oam[0].shape = ST_OAM_SQUARE;
+  oam[0].x = 0;
+  oam[0].y = 0;
+  oam[0].size = ST_OAM_SIZE_0;
+  oam[0].tileNum = 0;
+  oam[0].priority = 0;
+  oam[0].paletteNum = 0;
+
+  pfr_renderer_init();
+
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expectedBackdrop = 0xFF080000U;
+  expectedSprite = 0xFF0000FFU;
+  assert(framebuffer[0] == expectedSprite);
+
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_OBJ_1D_MAP;
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  assert(framebuffer[0] == expectedBackdrop);
+}
+
+static void
+test_renderer_skips_affine_erase_sprites(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  uint32_t expectedBackdrop;
+  const uint32_t* framebuffer;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[0x100 + 1] = 0x001F;
+  gPfrVram[0x10000] = 0x11;
+
+  oam[0].affineMode = ST_OAM_AFFINE_ERASE;
+  oam[0].objMode = ST_OAM_OBJ_NORMAL;
+  oam[0].mosaic = FALSE;
+  oam[0].bpp = ST_OAM_4BPP;
+  oam[0].shape = ST_OAM_SQUARE;
+  oam[0].x = 0;
+  oam[0].y = 0;
+  oam[0].size = ST_OAM_SIZE_0;
+  oam[0].tileNum = 0;
+  oam[0].priority = 0;
+  oam[0].paletteNum = 0;
+
+  pfr_renderer_init();
+
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expectedBackdrop = 0xFF080000U;
+  assert(framebuffer[0] == expectedBackdrop);
+}
+
+static void
+test_renderer_respects_forced_blank(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0001;
+  ((u16*)gPfrPltt)[0x100 + 1] = 0x001F;
+  gPfrVram[0x10000] = 0x11;
+
+  oam[0].affineMode = ST_OAM_AFFINE_OFF;
+  oam[0].objMode = ST_OAM_OBJ_NORMAL;
+  oam[0].mosaic = FALSE;
+  oam[0].bpp = ST_OAM_4BPP;
+  oam[0].shape = ST_OAM_SQUARE;
+  oam[0].x = 0;
+  oam[0].y = 0;
+  oam[0].size = ST_OAM_SIZE_0;
+  oam[0].tileNum = 0;
+  oam[0].priority = 0;
+  oam[0].paletteNum = 0;
+
+  pfr_renderer_init();
+
+  REG_DISPCNT =
+    DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP | DISPCNT_FORCED_BLANK;
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  assert(framebuffer[0] == 0xFFFFFFFFU);
 }
 
 static void
@@ -362,6 +493,15 @@ main(void)
   fflush(stdout);
   test_gpu_regs();
   printf("pfr_smoke: test_gpu_regs ok\n");
+  fflush(stdout);
+  test_renderer_respects_obj_disable();
+  printf("pfr_smoke: test_renderer_respects_obj_disable ok\n");
+  fflush(stdout);
+  test_renderer_skips_affine_erase_sprites();
+  printf("pfr_smoke: test_renderer_skips_affine_erase_sprites ok\n");
+  fflush(stdout);
+  test_renderer_respects_forced_blank();
+  printf("pfr_smoke: test_renderer_respects_forced_blank ok\n");
   fflush(stdout);
   test_storage_roundtrip();
   printf("pfr_smoke: test_storage_roundtrip ok\n");

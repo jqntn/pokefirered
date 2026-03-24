@@ -273,9 +273,14 @@ pfr_sample_sprite_pixel(int screen_x, int screen_y)
 {
   const struct OamData* oam = (const struct OamData*)gPfrOam;
   const u16* palette = (const u16*)gPfrPltt;
-  bool one_d_mapping = (REG_DISPCNT & DISPCNT_OBJ_1D_MAP) != 0;
+  u16 dispcnt = REG_DISPCNT;
+  bool one_d_mapping = (dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
   PfrPixelSample best = { false, 4, 0xFF, 0 };
   int sprite_index;
+
+  if ((dispcnt & DISPCNT_OBJ_ON) == 0) {
+    return best;
+  }
 
   for (sprite_index = 0; sprite_index < 128; sprite_index++) {
     const struct OamData* entry = &oam[sprite_index];
@@ -301,7 +306,8 @@ pfr_sample_sprite_pixel(int screen_x, int screen_y)
       continue;
     }
 
-    if (entry->objMode == ST_OAM_OBJ_WINDOW) {
+    if (entry->objMode == ST_OAM_OBJ_WINDOW ||
+        entry->affineMode == ST_OAM_AFFINE_ERASE) {
       continue;
     }
 
@@ -415,6 +421,11 @@ pfr_renderer_render_frame(void)
 {
   int x;
   int y;
+
+  if ((REG_DISPCNT & DISPCNT_FORCED_BLANK) != 0) {
+    memset(sFramebuffer, 0xFF, sizeof(sFramebuffer));
+    return;
+  }
 
   for (y = 0; y < DISPLAY_HEIGHT; y++) {
     for (x = 0; x < DISPLAY_WIDTH; x++) {
