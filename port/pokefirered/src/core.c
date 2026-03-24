@@ -16,20 +16,20 @@
 typedef union PfrAlignedStorage
 {
   uint8_t bytes[PFR_VRAM_SIZE];
-  uint32_t alignment;
+  uint64_t alignment;
 } PfrAlignedStorage;
 
 typedef union PfrSmallStorage
 {
   uint8_t bytes[PFR_PLTT_SIZE];
-  uint32_t alignment;
+  uint64_t alignment;
 } PfrSmallStorage;
 
 typedef union PfrIoStorage
 {
   uint8_t bytes[PFR_IO_SIZE];
 
-  uint32_t alignment;
+  uint64_t alignment;
 } PfrIoStorage;
 
 #include "global.h"
@@ -42,13 +42,13 @@ struct SaveBlock2* gSaveBlock2Ptr = &gSaveBlock2;
 static union
 {
   uint8_t bytes[PFR_EWRAM_SIZE];
-  uint32_t alignment;
+  uint64_t alignment;
 } sPfrEwramStorage;
 
 static union
 {
   uint8_t bytes[PFR_IWRAM_SIZE];
-  uint32_t alignment;
+  uint64_t alignment;
 } sPfrIwramStorage;
 
 static PfrAlignedStorage sPfrVramStorage;

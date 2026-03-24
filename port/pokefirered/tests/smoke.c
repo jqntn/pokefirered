@@ -115,7 +115,12 @@ test_dma3(void)
 
   test_dma3_trace("clear");
   ClearDma3Requests();
+  test_dma3_trace("after clear");
+  printf("pfr_smoke: test_dma3 gPfrIo=%p\n", (void*)gPfrIo);
+  fflush(stdout);
+  test_dma3_trace("set vcount");
   REG_VCOUNT = 225;
+  test_dma3_trace("after vcount");
 
   test_dma3_trace("queue copy16");
   request = RequestDma3Copy(src16, copy16, sizeof(src16), DMA3_16BIT);

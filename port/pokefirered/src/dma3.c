@@ -111,9 +111,19 @@ Dma3FillLarge32_(u32 value, void* dest, u32 size)
 void
 ClearDma3Requests(void)
 {
+  int i;
+
   sDma3ManagerLocked = TRUE;
   sDma3RequestCursor = 0;
-  memset(sDma3Requests, 0, sizeof(sDma3Requests));
+
+  for (i = 0; i < PFR_MAX_DMA_REQUESTS; i++) {
+    sDma3Requests[i].src = NULL;
+    sDma3Requests[i].dest = NULL;
+    sDma3Requests[i].size = 0;
+    sDma3Requests[i].mode = 0;
+    sDma3Requests[i].value = 0;
+  }
+
   sDma3ManagerLocked = FALSE;
 }
 
