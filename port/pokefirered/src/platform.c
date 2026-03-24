@@ -96,11 +96,11 @@ pfr_poll_keys(void)
 {
   uint16_t keys = 0;
 
-  if (IsKeyDown(KEY_Z)) {
+  if (IsKeyDown(KEY_X)) {
     keys |= A_BUTTON;
   }
 
-  if (IsKeyDown(KEY_X)) {
+  if (IsKeyDown(KEY_C)) {
     keys |= B_BUTTON;
   }
 
@@ -129,11 +129,11 @@ pfr_poll_keys(void)
   }
 
   if (IsKeyDown(KEY_S)) {
-    keys |= R_BUTTON;
+    keys |= L_BUTTON;
   }
 
-  if (IsKeyDown(KEY_A)) {
-    keys |= L_BUTTON;
+  if (IsKeyDown(KEY_D)) {
+    keys |= R_BUTTON;
   }
 
   if (IsGamepadAvailable(0)) {

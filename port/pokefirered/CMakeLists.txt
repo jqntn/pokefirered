@@ -86,6 +86,8 @@ else()
   FetchContent_MakeAvailable(raylib)
 endif()
 
+target_link_libraries(pfr_core PUBLIC raylib)
+
 add_executable(pfr_assettool tools/frontend_asset_tool.c)
 target_link_libraries(pfr_assettool PRIVATE raylib)
 

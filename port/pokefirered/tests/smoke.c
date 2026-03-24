@@ -15,6 +15,7 @@
 #include "pfr/core.h"
 #include "pfr/main_runtime.h"
 #include "pfr/storage.h"
+#include "raylib.h"
 #include "task.h"
 
 static int sTaskLog[8];
@@ -229,6 +230,19 @@ test_storage_roundtrip(void)
 }
 
 static void
+test_storage_default_path(void)
+{
+  char path[PFR_MAX_PATH];
+  const char* application_directory = GetApplicationDirectory();
+  size_t directory_length = strlen(application_directory);
+
+  assert(application_directory[0] != '\0');
+  assert(pfr_storage_default_path(path, sizeof(path)));
+  assert(strncmp(path, application_directory, directory_length) == 0);
+  assert(strcmp(path + directory_length, "pokefirered.sav") == 0);
+}
+
+static void
 test_tasks(void)
 {
   u8 taskId;
@@ -351,6 +365,9 @@ main(void)
   fflush(stdout);
   test_storage_roundtrip();
   printf("pfr_smoke: test_storage_roundtrip ok\n");
+  fflush(stdout);
+  test_storage_default_path();
+  printf("pfr_smoke: test_storage_default_path ok\n");
   fflush(stdout);
   test_tasks();
   printf("pfr_smoke: test_tasks ok\n");

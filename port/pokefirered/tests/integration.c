@@ -10,9 +10,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "global.h"
+
 #include "bg.h"
 #include "dma3.h"
-#include "global.h"
 #include "malloc.h"
 #include "new_menu_helpers.h"
 #include "pfr/main_runtime.h"
