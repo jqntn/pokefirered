@@ -6,8 +6,10 @@
 
 typedef struct PfrTaskSidecar
 {
+  uintptr_t word_values[NUM_TASK_DATA];
   uintptr_t ptr_values[NUM_TASK_DATA];
   TaskFunc callback_values[NUM_TASK_DATA];
+  u16 word_mask;
   u16 ptr_mask;
   u16 callback_mask;
 } PfrTaskSidecar;
@@ -217,23 +219,31 @@ GetTaskCount(void)
 }
 
 void
-SetWordTaskArg(u8 taskId, u8 dataElem, unsigned long value)
+SetWordTaskArg(u8 taskId, u8 dataElem, uintptr_t value)
 {
-  if (dataElem <= 14) {
-    gTasks[taskId].data[dataElem] = (s16)value;
-    gTasks[taskId].data[dataElem + 1] = (s16)(value >> 16);
+  if (taskId < NUM_TASKS && dataElem < NUM_TASK_DATA - 1) {
+    u32 low_word = (u32)value;
+
+    gTasks[taskId].data[dataElem] = (s16)low_word;
+    gTasks[taskId].data[dataElem + 1] = (s16)(low_word >> 16);
+    sTaskSidecars[taskId].word_values[dataElem] = value;
+    sTaskSidecars[taskId].word_mask |= (u16)(1U << dataElem);
   }
 }
 
-u32
+uintptr_t
 GetWordTaskArg(u8 taskId, u8 dataElem)
 {
-  if (dataElem <= 14) {
+  if (taskId < NUM_TASKS && dataElem < NUM_TASK_DATA - 1) {
+    if ((sTaskSidecars[taskId].word_mask & (u16)(1U << dataElem)) != 0) {
+      return sTaskSidecars[taskId].word_values[dataElem];
+    }
+
     return (u16)gTasks[taskId].data[dataElem] |
            ((u32)(u16)gTasks[taskId].data[dataElem + 1] << 16);
-  } else {
-    return 0;
   }
+
+  return 0;
 }
 
 void

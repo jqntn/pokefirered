@@ -410,6 +410,11 @@ test_tasks(void)
   SetWordTaskArg(taskId, 4, 0x11223344UL);
   assert(GetWordTaskArg(taskId, 4) == 0x11223344UL);
   DestroyTask(taskId);
+
+  taskId = CreateTask(TaskDummy, 0);
+  SetWordTaskArg(taskId, 4, (uintptr_t)&marker);
+  assert(GetWordTaskArg(taskId, 4) == (uintptr_t)&marker);
+  DestroyTask(taskId);
 }
 
 static void

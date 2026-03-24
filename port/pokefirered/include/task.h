@@ -1,6 +1,8 @@
 #ifndef GUARD_TASK_H
 #define GUARD_TASK_H
 
+#include <stdint.h>
+
 #include "gba/types.h"
 
 #define HEAD_SENTINEL 0xFE
@@ -45,8 +47,8 @@ FindTaskIdByFunc(TaskFunc func);
 u8
 GetTaskCount(void);
 void
-SetWordTaskArg(u8 taskId, u8 dataElem, unsigned long value);
-u32
+SetWordTaskArg(u8 taskId, u8 dataElem, uintptr_t value);
+uintptr_t
 GetWordTaskArg(u8 taskId, u8 dataElem);
 void
 PfrSetTaskPtr(u8 taskId, u8 dataElem, const void* value);
