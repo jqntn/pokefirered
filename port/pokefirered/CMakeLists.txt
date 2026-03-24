@@ -35,9 +35,6 @@ if(MSVC)
   target_sources(pfr_preproc PRIVATE tools/msvc/getopt_compat.cpp)
   target_include_directories(pfr_preproc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/msvc/include)
   target_compile_definitions(pfr_preproc PRIVATE _CRT_SECURE_NO_WARNINGS)
-  target_compile_options(pfr_preproc PRIVATE /W4 /WX /wd4244 /wd4267 /wd4996)
-else()
-  target_compile_options(pfr_preproc PRIVATE -Wall -Wextra -Werror)
 endif()
 
 set(PFR_CORE_SOURCES
