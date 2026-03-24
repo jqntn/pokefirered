@@ -28,6 +28,13 @@ static size_t sMainLogCount;
 static int sVBlankCount;
 
 static void
+test_dma3_trace(const char* step)
+{
+  printf("pfr_smoke: test_dma3 %s\n", step);
+  fflush(stdout);
+}
+
+static void
 pfr_hide_all_test_sprites(struct OamData* oam)
 {
   int i;
@@ -106,38 +113,50 @@ test_dma3(void)
   u32 fill32[4] = { 0 };
   s16 request;
 
+  test_dma3_trace("clear");
   ClearDma3Requests();
   REG_VCOUNT = 225;
 
+  test_dma3_trace("queue copy16");
   request = RequestDma3Copy(src16, copy16, sizeof(src16), DMA3_16BIT);
   assert(request >= 0);
+  test_dma3_trace("check pending copy16");
   assert(WaitDma3Request(request) == -1);
+  test_dma3_trace("process copy16 outside vblank");
   ProcessDma3Requests();
+  test_dma3_trace("confirm copy16 still pending");
   assert(WaitDma3Request(request) == -1);
   assert(copy16[0] == 0);
 
   REG_VCOUNT = 160;
+  test_dma3_trace("process copy16 in vblank");
   ProcessDma3Requests();
   assert(memcmp(src16, copy16, sizeof(src16)) == 0);
   assert(WaitDma3Request(request) == 0);
 
+  test_dma3_trace("queue fill16");
   request = RequestDma3Fill(0x1357, fill16, sizeof(fill16), DMA3_16BIT);
   assert(request >= 0);
+  test_dma3_trace("process fill16");
   ProcessDma3Requests();
   assert(fill16[0] == 0x1357);
   assert(fill16[5] == 0x1357);
   assert(WaitDma3Request(request) == 0);
 
+  test_dma3_trace("queue fill32");
   request = RequestDma3Fill(0x11223344, fill32, sizeof(fill32), DMA3_32BIT);
   assert(request >= 0);
+  test_dma3_trace("process fill32");
   ProcessDma3Requests();
   assert(fill32[0] == 0x11223344U);
   assert(fill32[3] == 0x11223344U);
   assert(WaitDma3Request(-1) == 0);
 
   memset(copy16, 0, sizeof(copy16));
+  test_dma3_trace("direct copy16");
   Dma3CopyLarge16_(src16, copy16, sizeof(src16));
   assert(memcmp(src16, copy16, sizeof(src16)) == 0);
+  test_dma3_trace("done");
 }
 
 static void

@@ -53,10 +53,10 @@
     DmaSet(dmaNum,                                                             \
            &tmp,                                                               \
            dest,                                                               \
-           (DMA_ENABLE | DMA_START_NOW | DMA_##bit##BIT | DMA_SRC_FIXED |      \
-            DMA_DEST_INC)                                                      \
-               << 16 |                                                         \
-             ((size) / (bit / 8)));                                            \
+           ((u32)(DMA_ENABLE | DMA_START_NOW | DMA_##bit##BIT |                \
+                  DMA_SRC_FIXED | DMA_DEST_INC)                                \
+            << 16) |                                                           \
+             ((u32)(size) / (u32)(bit / 8)));                                  \
   }
 
 #define DmaFill16(dmaNum, value, dest, size)                                   \
@@ -69,10 +69,10 @@
     DmaSet(dmaNum,                                                             \
            src,                                                                \
            dest,                                                               \
-           (DMA_ENABLE | DMA_START_NOW | DMA_##bit##BIT | DMA_SRC_INC |        \
-            DMA_DEST_INC)                                                      \
-               << 16 |                                                         \
-             ((size) / (bit / 8)));                                            \
+           ((u32)(DMA_ENABLE | DMA_START_NOW | DMA_##bit##BIT | DMA_SRC_INC |  \
+                  DMA_DEST_INC)                                                \
+            << 16) |                                                           \
+             ((u32)(size) / (u32)(bit / 8)));                                  \
   }
 
 #define DmaCopy16(dmaNum, src, dest, size) DMA_COPY(dmaNum, src, dest, size, 16)
