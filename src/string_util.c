@@ -23,7 +23,7 @@ static const s32 sPowersOfTen[] =
     1000000000,
 };
 
-extern const u8 gExpandedPlaceholder_Empty[];
+extern u8 gExpandedPlaceholder_Empty[];
 extern u8 gExpandedPlaceholder_Kun[];
 extern u8 gExpandedPlaceholder_Chan[];
 extern u8 gExpandedPlaceholder_Sapphire[];
