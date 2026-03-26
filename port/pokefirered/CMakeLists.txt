@@ -613,6 +613,24 @@ else()
 endif()
 
 add_test(NAME pfr_smoke COMMAND pfr_smoke)
+add_test(
+  NAME pfr_asset_title_border_bg
+  COMMAND ${CMAKE_COMMAND}
+          -DPFR_ASSET_ROOT=${PFR_ASSET_ROOT}
+          -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_title_border_bg.cmake")
+add_test(
+  NAME pfr_asset_title_press_start_blink
+  COMMAND ${CMAKE_COMMAND}
+          -DPFR_ASSET_ROOT=${PFR_ASSET_ROOT}
+          -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_title_press_start_blink.cmake")
+add_test(
+  NAME pfr_asset_title_flames_palette
+  COMMAND ${CMAKE_COMMAND}
+          -DPFR_ASSET_ROOT=${PFR_ASSET_ROOT}
+          -P
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_title_flames_palette.cmake")
 add_test(NAME pfr_headless_boot COMMAND pokefirered --headless --frames 180 --quit-on-title)
 add_test(
   NAME pfr_headless_main_menu
