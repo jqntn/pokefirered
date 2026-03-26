@@ -1,7 +1,7 @@
 #include <ctype.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -91,8 +91,7 @@ pfr_extension(const char* path)
 static int
 pfr_rgb_to_555(Color color)
 {
-  return ((color.r >> 3) & 0x1F) |
-         (((color.g >> 3) & 0x1F) << 5) |
+  return ((color.r >> 3) & 0x1F) | (((color.g >> 3) & 0x1F) << 5) |
          (((color.b >> 3) & 0x1F) << 10);
 }
 
@@ -214,8 +213,8 @@ pfr_read_file(const char* path, size_t* size)
 static bool
 pfr_try_load_png_index_info(const char* path, PfrPngIndexInfo* info)
 {
-  static const unsigned char sPngSignature[8] =
-    { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
+  static const unsigned char sPngSignature[8] = { 0x89, 'P',  'N',  'G',
+                                                  '\r', '\n', 0x1A, '\n' };
   size_t size = 0;
   unsigned char* data = pfr_read_file(path, &size);
   size_t offset = sizeof(sPngSignature);
@@ -286,12 +285,10 @@ pfr_try_load_png_index_info(const char* path, PfrPngIndexInfo* info)
 
       info->palette_count = (int)(chunk_size / 3U);
       for (index = 0; index < chunk_size / 3U; index++) {
-        info->palette[index] = (Color){
-          chunk_data[index * 3U + 0U],
-          chunk_data[index * 3U + 1U],
-          chunk_data[index * 3U + 2U],
-          255
-        };
+        info->palette[index] = (Color){ chunk_data[index * 3U + 0U],
+                                        chunk_data[index * 3U + 1U],
+                                        chunk_data[index * 3U + 2U],
+                                        255 };
       }
     } else if (memcmp(chunk_type, "IDAT", 4) == 0) {
       pfr_buffer_append(&idat, chunk_data, chunk_size);
@@ -330,8 +327,8 @@ pfr_try_load_png_index_info(const char* path, PfrPngIndexInfo* info)
       goto done;
     }
 
-    info->indices =
-      malloc((size_t)info->width * (size_t)info->height * sizeof(unsigned char));
+    info->indices = malloc((size_t)info->width * (size_t)info->height *
+                           sizeof(unsigned char));
     previous_row = calloc((size_t)packed_row_size, sizeof(unsigned char));
     current_row = malloc((size_t)packed_row_size);
     if (info->indices == NULL || previous_row == NULL || current_row == NULL) {
@@ -348,63 +345,63 @@ pfr_try_load_png_index_info(const char* path, PfrPngIndexInfo* info)
       memcpy(current_row, src + 1, (size_t)packed_row_size);
 
       switch (filter) {
-      case 0:
-        break;
-      case 1:
-        for (x = 0; x < packed_row_size; x++) {
-          unsigned char left = (x > 0) ? current_row[x - 1] : 0;
-          current_row[x] = (unsigned char)(current_row[x] + left);
-        }
-        break;
-      case 2:
-        for (x = 0; x < packed_row_size; x++) {
-          current_row[x] = (unsigned char)(current_row[x] + previous_row[x]);
-        }
-        break;
-      case 3:
-        for (x = 0; x < packed_row_size; x++) {
-          unsigned char left = (x > 0) ? current_row[x - 1] : 0;
-          unsigned char up = previous_row[x];
-          current_row[x] =
-            (unsigned char)(current_row[x] + ((left + up) / 2));
-        }
-        break;
-      case 4:
-        for (x = 0; x < packed_row_size; x++) {
-          int left = (x > 0) ? current_row[x - 1] : 0;
-          int up = previous_row[x];
-          int up_left = (x > 0) ? previous_row[x - 1] : 0;
-          int predictor = left + up - up_left;
-          int left_delta = predictor - left;
-          int up_delta = predictor - up;
-          int up_left_delta = predictor - up_left;
-
-          if (left_delta < 0) {
-            left_delta = -left_delta;
+        case 0:
+          break;
+        case 1:
+          for (x = 0; x < packed_row_size; x++) {
+            unsigned char left = (x > 0) ? current_row[x - 1] : 0;
+            current_row[x] = (unsigned char)(current_row[x] + left);
           }
-
-          if (up_delta < 0) {
-            up_delta = -up_delta;
+          break;
+        case 2:
+          for (x = 0; x < packed_row_size; x++) {
+            current_row[x] = (unsigned char)(current_row[x] + previous_row[x]);
           }
-
-          if (up_left_delta < 0) {
-            up_left_delta = -up_left_delta;
+          break;
+        case 3:
+          for (x = 0; x < packed_row_size; x++) {
+            unsigned char left = (x > 0) ? current_row[x - 1] : 0;
+            unsigned char up = previous_row[x];
+            current_row[x] =
+              (unsigned char)(current_row[x] + ((left + up) / 2));
           }
+          break;
+        case 4:
+          for (x = 0; x < packed_row_size; x++) {
+            int left = (x > 0) ? current_row[x - 1] : 0;
+            int up = previous_row[x];
+            int up_left = (x > 0) ? previous_row[x - 1] : 0;
+            int predictor = left + up - up_left;
+            int left_delta = predictor - left;
+            int up_delta = predictor - up;
+            int up_left_delta = predictor - up_left;
 
-          if (left_delta <= up_delta && left_delta <= up_left_delta) {
-            predictor = left;
-          } else if (up_delta <= up_left_delta) {
-            predictor = up;
-          } else {
-            predictor = up_left;
+            if (left_delta < 0) {
+              left_delta = -left_delta;
+            }
+
+            if (up_delta < 0) {
+              up_delta = -up_delta;
+            }
+
+            if (up_left_delta < 0) {
+              up_left_delta = -up_left_delta;
+            }
+
+            if (left_delta <= up_delta && left_delta <= up_left_delta) {
+              predictor = left;
+            } else if (up_delta <= up_left_delta) {
+              predictor = up;
+            } else {
+              predictor = up_left;
+            }
+
+            current_row[x] = (unsigned char)(current_row[x] + predictor);
           }
-
-          current_row[x] = (unsigned char)(current_row[x] + predictor);
-        }
-        break;
-      default:
-        success = false;
-        goto done;
+          break;
+        default:
+          success = false;
+          goto done;
       }
 
       for (x = 0; x < info->width; x++) {
@@ -414,7 +411,8 @@ pfr_try_load_png_index_info(const char* path, PfrPngIndexInfo* info)
           value = current_row[x];
         } else if (info->bit_depth == 4) {
           unsigned char packed = current_row[x / 2];
-          value = (unsigned char)(((x & 1) == 0) ? (packed >> 4) : (packed & 0x0F));
+          value =
+            (unsigned char)(((x & 1) == 0) ? (packed >> 4) : (packed & 0x0F));
         } else if (info->bit_depth == 2) {
           unsigned char packed = current_row[x / 4];
           value = (unsigned char)((packed >> (6 - (x & 3) * 2)) & 0x03);
@@ -501,8 +499,9 @@ pfr_load_palette_from_jasc(const char* path)
       pfr_fail("invalid JASC palette entry", path);
     }
 
-    palette.colors[index] =
-      (Color){ (unsigned char)red, (unsigned char)green, (unsigned char)blue, 255 };
+    palette.colors[index] = (Color){
+      (unsigned char)red, (unsigned char)green, (unsigned char)blue, 255
+    };
   }
 
   fclose(file);
@@ -540,8 +539,8 @@ pfr_load_palette_from_png(const char* path)
   if (pfr_try_load_png_index_info(path, &png_index_info) &&
       png_index_info.mode == PFR_PNG_INDEX_PALETTE &&
       png_index_info.palette_count > 0) {
-    palette =
-      pfr_copy_palette(png_index_info.palette, png_index_info.palette_count, path);
+    palette = pfr_copy_palette(
+      png_index_info.palette, png_index_info.palette_count, path);
     free(png_index_info.indices);
     return palette;
   }
@@ -664,9 +663,8 @@ pfr_generate_tile_data(const char* input_path,
       pfr_try_load_png_index_info(input_path, &png_index_info)) {
     use_png_indices = true;
   } else {
-    palette =
-      (palette_path != NULL) ? pfr_load_palette(palette_path)
-                             : pfr_load_palette_from_png(input_path);
+    palette = (palette_path != NULL) ? pfr_load_palette(palette_path)
+                                     : pfr_load_palette_from_png(input_path);
   }
   pixels = LoadImageColors(image);
 
@@ -705,16 +703,15 @@ pfr_generate_tile_data(const char* input_path,
 
             if (use_png_indices) {
               index =
-                png_index_info.indices[(size_t)pixel_y *
-                                         (size_t)png_index_info.width +
-                                       (size_t)pixel_x];
+                png_index_info
+                  .indices[(size_t)pixel_y * (size_t)png_index_info.width +
+                           (size_t)pixel_x];
               if (png_index_info.mode == PFR_PNG_INDEX_GRAYSCALE) {
                 index = 0xFF - index;
               }
             } else {
-              index =
-                pfr_find_palette_index(&palette,
-                                       pixels[pixel_y * image.width + pixel_x]);
+              index = pfr_find_palette_index(
+                &palette, pixels[pixel_y * image.width + pixel_x]);
             }
 
             if (index < 0 || index > 255) {
@@ -739,14 +736,13 @@ pfr_generate_tile_data(const char* input_path,
             if (use_png_indices) {
               int max_index = (1 << bpp) - 1;
 
-              left =
-                png_index_info.indices[(size_t)pixel_y *
-                                         (size_t)png_index_info.width +
-                                       (size_t)pixel_x];
+              left = png_index_info
+                       .indices[(size_t)pixel_y * (size_t)png_index_info.width +
+                                (size_t)pixel_x];
               right =
-                png_index_info.indices[(size_t)pixel_y *
-                                         (size_t)png_index_info.width +
-                                       (size_t)(pixel_x + 1)];
+                png_index_info
+                  .indices[(size_t)pixel_y * (size_t)png_index_info.width +
+                           (size_t)(pixel_x + 1)];
               left &= max_index;
               right &= max_index;
               if (png_index_info.mode == PFR_PNG_INDEX_GRAYSCALE) {
@@ -754,13 +750,10 @@ pfr_generate_tile_data(const char* input_path,
                 right = max_index - right;
               }
             } else {
-              left =
-                pfr_find_palette_index(&palette,
-                                       pixels[pixel_y * image.width + pixel_x]);
-              right =
-                pfr_find_palette_index(&palette,
-                                       pixels[pixel_y * image.width +
-                                              pixel_x + 1]);
+              left = pfr_find_palette_index(
+                &palette, pixels[pixel_y * image.width + pixel_x]);
+              right = pfr_find_palette_index(
+                &palette, pixels[pixel_y * image.width + pixel_x + 1]);
             }
 
             if (left < 0 || left > 15 || right < 0 || right > 15) {
@@ -770,7 +763,8 @@ pfr_generate_tile_data(const char* input_path,
                 pfr_free_palette(&palette);
               }
               UnloadImage(image);
-              pfr_fail("pixel color is not present in 4bpp palette", input_path);
+              pfr_fail("pixel color is not present in 4bpp palette",
+                       input_path);
             }
 
             output[offset++] = (unsigned char)(left | (right << 4));
@@ -830,7 +824,8 @@ pfr_find_match(const unsigned char* data,
     int length = 0;
 
     while (length < 18 && position + (size_t)length < size &&
-           data[candidate + (size_t)length] == data[position + (size_t)length]) {
+           data[candidate + (size_t)length] ==
+             data[position + (size_t)length]) {
       length++;
     }
 
@@ -874,9 +869,9 @@ pfr_generate_lz(const char* input_path, const char* output_path)
 
       if (length >= 3) {
         flags |= (unsigned char)(1U << (7 - bit));
-        pfr_buffer_push(&output,
-                        (unsigned char)(((length - 3) << 4) |
-                                        ((back_offset >> 8) & 0x0F)));
+        pfr_buffer_push(
+          &output,
+          (unsigned char)(((length - 3) << 4) | ((back_offset >> 8) & 0x0F)));
         pfr_buffer_push(&output, (unsigned char)(back_offset & 0xFF));
         position += (size_t)length;
       } else {
