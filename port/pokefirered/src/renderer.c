@@ -587,8 +587,12 @@ pfr_pixel_in_obj_window(int screen_x, int screen_y, u16 dispcnt)
       continue;
     }
 
-    if (pfr_sample_sprite_texel(
-          entry, (const u16*)gPfrPltt, one_d_mapping, screen_x, screen_y, NULL)) {
+    if (pfr_sample_sprite_texel(entry,
+                                (const u16*)gPfrPltt,
+                                one_d_mapping,
+                                screen_x,
+                                screen_y,
+                                NULL)) {
       return true;
     }
   }
@@ -607,7 +611,8 @@ pfr_window_state_for_pixel(int screen_x,
   u16 control;
   u16 dispcnt = line_regs->dispcnt;
 
-  if ((dispcnt & (DISPCNT_WIN0_ON | DISPCNT_WIN1_ON | DISPCNT_OBJWIN_ON)) == 0) {
+  if ((dispcnt & (DISPCNT_WIN0_ON | DISPCNT_WIN1_ON | DISPCNT_OBJWIN_ON)) ==
+      0) {
     return state;
   }
 
@@ -616,8 +621,10 @@ pfr_window_state_for_pixel(int screen_x,
       pfr_coord_in_window_range(screen_y, DISPLAY_HEIGHT, line_regs->win0v)) {
     control = line_regs->winin & 0x3FU;
   } else if ((dispcnt & DISPCNT_WIN1_ON) != 0 &&
-             pfr_coord_in_window_range(screen_x, DISPLAY_WIDTH, line_regs->win1h) &&
-             pfr_coord_in_window_range(screen_y, DISPLAY_HEIGHT, line_regs->win1v)) {
+             pfr_coord_in_window_range(
+               screen_x, DISPLAY_WIDTH, line_regs->win1h) &&
+             pfr_coord_in_window_range(
+               screen_y, DISPLAY_HEIGHT, line_regs->win1v)) {
     control = (line_regs->winin >> 8) & 0x3FU;
   } else if ((dispcnt & DISPCNT_OBJWIN_ON) != 0 &&
              pfr_pixel_in_obj_window(screen_x, screen_y, dispcnt)) {
@@ -626,9 +633,9 @@ pfr_window_state_for_pixel(int screen_x,
     control = line_regs->winout & 0x3FU;
   }
 
-  state.visible_layers = (u8)(control & (PFR_LAYER_BG0 | PFR_LAYER_BG1 |
-                                         PFR_LAYER_BG2 | PFR_LAYER_BG3 |
-                                         PFR_LAYER_OBJ));
+  state.visible_layers =
+    (u8)(control & (PFR_LAYER_BG0 | PFR_LAYER_BG1 | PFR_LAYER_BG2 |
+                    PFR_LAYER_BG3 | PFR_LAYER_OBJ));
   state.color_effect_enabled = (control & 0x20U) != 0;
   return state;
 }
@@ -649,20 +656,20 @@ pfr_apply_color_effect(PfrPixelSample top,
   }
 
   switch (effect) {
-  case BLDCNT_EFFECT_BLEND:
-    if (second.opaque && (second.layer & second_targets) != 0) {
-      u16 bldalpha = line_regs->bldalpha;
-      int eva = bldalpha & 0x1F;
-      int evb = (bldalpha >> 8) & 0x1F;
-      return pfr_blend_colors(top.color, second.color, eva, evb);
-    }
-    break;
-  case BLDCNT_EFFECT_LIGHTEN:
-    return pfr_lighten_color(top.color, line_regs->bldy & 0x1F);
-  case BLDCNT_EFFECT_DARKEN:
-    return pfr_darken_color(top.color, line_regs->bldy & 0x1F);
-  default:
-    break;
+    case BLDCNT_EFFECT_BLEND:
+      if (second.opaque && (second.layer & second_targets) != 0) {
+        u16 bldalpha = line_regs->bldalpha;
+        int eva = bldalpha & 0x1F;
+        int evb = (bldalpha >> 8) & 0x1F;
+        return pfr_blend_colors(top.color, second.color, eva, evb);
+      }
+      break;
+    case BLDCNT_EFFECT_LIGHTEN:
+      return pfr_lighten_color(top.color, line_regs->bldy & 0x1F);
+    case BLDCNT_EFFECT_DARKEN:
+      return pfr_darken_color(top.color, line_regs->bldy & 0x1F);
+    default:
+      break;
   }
 
   return top.color;
@@ -680,7 +687,8 @@ pfr_sample_sprite_pixel(int screen_x,
   PfrPixelSample best = { false, 4, 0xFF, 0 };
   int sprite_index;
 
-  if ((dispcnt & DISPCNT_OBJ_ON) == 0 || (visible_layers & PFR_LAYER_OBJ) == 0) {
+  if ((dispcnt & DISPCNT_OBJ_ON) == 0 ||
+      (visible_layers & PFR_LAYER_OBJ) == 0) {
     return best;
   }
 
@@ -765,32 +773,32 @@ pfr_renderer_render_frame(void)
   }
 
   for (y = 0; y < DISPLAY_HEIGHT; y++) {
-    PfrLineRegs fallback_line = {
-      REG_DISPCNT, REG_WININ, REG_WINOUT, REG_WIN0H, REG_WIN0V,
-      REG_WIN1H,   REG_WIN1V, REG_BLDCNT, REG_BLDALPHA, REG_BLDY,
-      true
-    };
+    PfrLineRegs fallback_line = { REG_DISPCNT, REG_WININ,  REG_WINOUT,
+                                  REG_WIN0H,   REG_WIN0V,  REG_WIN1H,
+                                  REG_WIN1V,   REG_BLDCNT, REG_BLDALPHA,
+                                  REG_BLDY,    true };
     const PfrLineRegs* line_regs =
       sLineRegs[y].valid ? &sLineRegs[y] : &fallback_line;
 
     for (x = 0; x < DISPLAY_WIDTH; x++) {
-      PfrWindowState window_state =
-        pfr_window_state_for_pixel(x, y, line_regs);
+      PfrWindowState window_state = pfr_window_state_for_pixel(x, y, line_regs);
       PfrPixelSample bg_top;
       PfrPixelSample bg_second;
       PfrPixelSample obj_sample = pfr_sample_sprite_pixel(
         x, y, window_state.visible_layers, line_regs->dispcnt);
       PfrPixelSample top = { 0 };
       PfrPixelSample second = { 0 };
-      PfrPixelSample backdrop = { true,
-                                  4,
-                                  0xFF,
-                                  ((const u16*)gPfrPltt)[0],
-                                  PFR_LAYER_BD };
+      PfrPixelSample backdrop = {
+        true, 4, 0xFF, ((const u16*)gPfrPltt)[0], PFR_LAYER_BD
+      };
       u16 final_color;
 
-      pfr_sample_backgrounds(
-        x, y, line_regs->dispcnt, window_state.visible_layers, &bg_top, &bg_second);
+      pfr_sample_backgrounds(x,
+                             y,
+                             line_regs->dispcnt,
+                             window_state.visible_layers,
+                             &bg_top,
+                             &bg_second);
       pfr_consider_sample(&top, &second, bg_top);
       pfr_consider_sample(&top, &second, bg_second);
       pfr_consider_sample(&top, &second, obj_sample);
