@@ -44,6 +44,29 @@ pfr_hide_all_test_sprites(struct OamData* oam)
   }
 }
 
+static uint32_t
+test_rgb555_to_rgba8888(u16 color)
+{
+  uint32_t r = (uint32_t)(color & 31U) * 255U / 31U;
+  uint32_t g = (uint32_t)((color >> 5) & 31U) * 255U / 31U;
+  uint32_t b = (uint32_t)((color >> 10) & 31U) * 255U / 31U;
+
+  return 0xFF000000U | (b << 16) | (g << 8) | r;
+}
+
+static u16
+test_lighten_color(u16 color, int coeff)
+{
+  int r = color & 31;
+  int g = (color >> 5) & 31;
+  int b = (color >> 10) & 31;
+
+  r += ((31 - r) * coeff) / 16;
+  g += ((31 - g) * coeff) / 16;
+  b += ((31 - b) * coeff) / 16;
+  return (u16)(r | (g << 5) | (b << 10));
+}
+
 static void
 test_oam_layout(void)
 {
@@ -332,6 +355,95 @@ test_renderer_respects_forced_blank(void)
 }
 
 static void
+test_renderer_obj_window_lightens_bg0(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_base;
+  uint32_t expected_lightened;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[1] = 0x001F;
+  gPfrVram[0] = 0x11;
+  gPfrVram[4] = 0x11;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31) = 0;
+  gPfrVram[0x10000] = 0x11;
+
+  oam[0].affineMode = ST_OAM_AFFINE_OFF;
+  oam[0].objMode = ST_OAM_OBJ_WINDOW;
+  oam[0].mosaic = FALSE;
+  oam[0].bpp = ST_OAM_4BPP;
+  oam[0].shape = ST_OAM_SQUARE;
+  oam[0].x = 0;
+  oam[0].y = 0;
+  oam[0].size = ST_OAM_SIZE_0;
+  oam[0].tileNum = 0;
+  oam[0].priority = 0;
+  oam[0].paletteNum = 0;
+
+  pfr_renderer_init();
+
+  REG_BG0CNT = BGCNT_SCREENBASE(31) | BGCNT_16COLOR | BGCNT_PRIORITY(0);
+  REG_DISPCNT =
+    DISPCNT_MODE_0 | DISPCNT_BG0_ON | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP |
+    DISPCNT_OBJWIN_ON;
+  REG_WINOUT = WINOUT_WIN01_BG0 | WINOUT_WINOBJ_BG0 | WINOUT_WINOBJ_CLR;
+  REG_BLDCNT = BLDCNT_TGT1_BG0 | BLDCNT_EFFECT_LIGHTEN;
+  REG_BLDY = 8;
+
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_base = test_rgb555_to_rgba8888(0x001F);
+  expected_lightened = test_rgb555_to_rgba8888(test_lighten_color(0x001F, 8));
+  assert(framebuffer[0] == expected_lightened);
+  assert(framebuffer[8] == expected_base);
+}
+
+static void
+test_renderer_uses_captured_scanline_bldy(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_base;
+  uint32_t expected_lightened;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[1] = 0x001F;
+  gPfrVram[0] = 0x11;
+  gPfrVram[4] = 0x11;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31) = 0;
+
+  pfr_renderer_init();
+
+  REG_BG0CNT = BGCNT_SCREENBASE(31) | BGCNT_16COLOR | BGCNT_PRIORITY(0);
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_BG0_ON;
+  REG_BLDCNT = BLDCNT_TGT1_BG0 | BLDCNT_EFFECT_LIGHTEN;
+
+  pfr_renderer_begin_frame_capture();
+  REG_BLDY = 0;
+  pfr_renderer_capture_scanline(0);
+  REG_BLDY = 8;
+  pfr_renderer_capture_scanline(1);
+
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_base = test_rgb555_to_rgba8888(0x001F);
+  expected_lightened = test_rgb555_to_rgba8888(test_lighten_color(0x001F, 8));
+  assert(framebuffer[0] == expected_base);
+  assert(framebuffer[DISPLAY_WIDTH] == expected_lightened);
+}
+
+static void
 test_cpuset(void)
 {
   u16 src16[4] = { 1, 2, 3, 4 };
@@ -542,6 +654,12 @@ main(void)
   fflush(stdout);
   test_renderer_respects_forced_blank();
   printf("pfr_smoke: test_renderer_respects_forced_blank ok\n");
+  fflush(stdout);
+  test_renderer_obj_window_lightens_bg0();
+  printf("pfr_smoke: test_renderer_obj_window_lightens_bg0 ok\n");
+  fflush(stdout);
+  test_renderer_uses_captured_scanline_bldy();
+  printf("pfr_smoke: test_renderer_uses_captured_scanline_bldy ok\n");
   fflush(stdout);
   test_storage_roundtrip();
   printf("pfr_smoke: test_storage_roundtrip ok\n");

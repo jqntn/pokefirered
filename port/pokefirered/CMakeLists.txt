@@ -641,12 +641,20 @@ add_executable(pfr_integration tests/integration.c)
 target_include_directories(pfr_integration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(pfr_integration PRIVATE pfr_core)
 
+add_executable(pfr_title_capture tests/title_capture.c)
+target_include_directories(pfr_title_capture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(pfr_title_capture PRIVATE pfr_core)
+
 if(MSVC)
   target_compile_definitions(pfr_integration PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(pfr_integration PRIVATE /W4 /WX)
+  target_compile_definitions(pfr_title_capture PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(pfr_title_capture PRIVATE /W4 /WX)
 else()
   target_compile_options(
     pfr_integration PRIVATE -Wall -Wextra -Werror -Wpedantic -fno-strict-aliasing)
+  target_compile_options(
+    pfr_title_capture PRIVATE -Wall -Wextra -Werror -Wpedantic -fno-strict-aliasing)
 endif()
 
 add_test(NAME pfr_integration COMMAND pfr_integration)

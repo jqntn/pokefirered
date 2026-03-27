@@ -22,6 +22,8 @@ typedef struct PfrOptions
   bool boot_sandbox;
 } PfrOptions;
 
+static const float sPfrMasterVolume = 0.0f;
+
 static bool
 pfr_parse_u32(const char* text, uint32_t* value)
 {
@@ -293,6 +295,7 @@ pfr_run_windowed(const PfrOptions* options)
   SetTextureFilter(texture, TEXTURE_FILTER_POINT);
 
   InitAudioDevice();
+  SetMasterVolume(sPfrMasterVolume);
   stream = LoadAudioStream(PFR_DEFAULT_AUDIO_SAMPLE_RATE, 16, 1);
   pfr_audio_reset(&audio_state);
   PlayAudioStream(stream);

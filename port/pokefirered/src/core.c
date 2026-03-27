@@ -88,25 +88,40 @@ pfr_core_simulate_scanlines(void)
   u16 vcount_line = (u16)(REG_DISPSTAT >> 8);
   int scanline;
 
-  for (scanline = 0; scanline < 228; scanline++) {
+  pfr_renderer_begin_frame_capture();
+
+  /* The main callback runs before WaitForVBlank. Apply that VBlank work first,
+   * then capture the visible scanlines that the hardware would display next. */
+  for (scanline = DISPLAY_HEIGHT; scanline < 228; scanline++) {
     REG_VCOUNT = (u16)scanline;
 
     if ((REG_DISPSTAT & DISPSTAT_VCOUNT_INTR) != 0 && scanline == vcount_line) {
       pfr_main_on_vcount();
     }
 
+    if ((REG_DISPSTAT & DISPSTAT_VBLANK) == 0) {
+      REG_DISPSTAT |= DISPSTAT_VBLANK;
+      pfr_main_on_vblank();
+    }
+
     REG_DISPSTAT |= DISPSTAT_HBLANK;
     pfr_main_on_hblank();
     REG_DISPSTAT &= (u16)~DISPSTAT_HBLANK;
+  }
 
-    if (scanline >= DISPLAY_HEIGHT) {
-      if ((REG_DISPSTAT & DISPSTAT_VBLANK) == 0) {
-        REG_DISPSTAT |= DISPSTAT_VBLANK;
-        pfr_main_on_vblank();
-      }
-    } else {
-      REG_DISPSTAT &= (u16)~DISPSTAT_VBLANK;
+  for (scanline = 0; scanline < DISPLAY_HEIGHT; scanline++) {
+    REG_VCOUNT = (u16)scanline;
+    REG_DISPSTAT &= (u16)~DISPSTAT_VBLANK;
+
+    if ((REG_DISPSTAT & DISPSTAT_VCOUNT_INTR) != 0 && scanline == vcount_line) {
+      pfr_main_on_vcount();
     }
+
+    pfr_renderer_capture_scanline(scanline);
+
+    REG_DISPSTAT |= DISPSTAT_HBLANK;
+    pfr_main_on_hblank();
+    REG_DISPSTAT &= (u16)~DISPSTAT_HBLANK;
   }
 
   REG_VCOUNT = 0;

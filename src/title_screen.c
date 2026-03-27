@@ -984,10 +984,12 @@ static bool32 CreateFlameSprite(s32 x, s32 y, s32 xspeed, s32 yspeed, bool32 cre
     if (createFlame)
         spriteId = CreateSprite(&sSpriteTemplate_FlameOrLeaf, x, y, 0);
     else
-        spriteId = CreateSprite(&sSpriteTemplate_BlankFlame, x, y, 0);
+        spriteId = CreateSprite(&sSpriteTemplate_FlameOrLeaf, x, y, 0);
 
     if (spriteId != MAX_SPRITES)
     {
+        if (!createFlame)
+            StartSpriteAnim(&gSprites[spriteId], 1);
         gSprites[spriteId].sPosX = x * 16;
         gSprites[spriteId].sSpeedX = xspeed;
         gSprites[spriteId].sPosY = y * 16;
