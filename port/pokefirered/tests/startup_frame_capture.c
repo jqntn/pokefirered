@@ -20,7 +20,7 @@
 
 #define BMP_HEADER_SIZE 54
 #define PFR_DEFAULT_MANIFEST_NAME "capture_manifest.txt"
-#define PFR_DEFAULT_SAVE_PATH "pfr_title_capture.tmp.sav"
+#define PFR_DEFAULT_SAVE_PATH "pfr_startup_frame_capture.tmp.sav"
 #define PFR_FILENAME_BUFFER_SIZE 256
 #define PFR_LINE_BUFFER_SIZE 512
 #define PFR_MAX_AUTO_START_FRAMES 16

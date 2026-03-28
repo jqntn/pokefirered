@@ -1059,9 +1059,10 @@ add_executable(pfr_integration tests/integration.c)
 target_include_directories(pfr_integration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(pfr_integration PRIVATE pfr_core)
 
-add_executable(pfr_title_capture tests/title_capture.c)
-target_include_directories(pfr_title_capture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(pfr_title_capture PRIVATE pfr_core)
+add_executable(pfr_startup_frame_capture tests/startup_frame_capture.c)
+target_include_directories(
+  pfr_startup_frame_capture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(pfr_startup_frame_capture PRIVATE pfr_core)
 
 set(PFR_STARTUP_FRAME_MANIFEST
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/startup_frame_manifest.txt")
@@ -1073,19 +1074,26 @@ set(PFR_STARTUP_CAPTURE_OUTPUT_MANIFEST
 if(MSVC)
   target_compile_definitions(pfr_integration PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(pfr_integration PRIVATE /W4 /WX)
-  target_compile_definitions(pfr_title_capture PRIVATE _CRT_SECURE_NO_WARNINGS)
-  target_compile_options(pfr_title_capture PRIVATE /W4 /WX)
+  target_compile_definitions(
+    pfr_startup_frame_capture PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(pfr_startup_frame_capture PRIVATE /W4 /WX)
 else()
   target_compile_options(
     pfr_integration PRIVATE -Wall -Wextra -Werror -Wpedantic -fno-strict-aliasing)
   target_compile_options(
-    pfr_title_capture PRIVATE -Wall -Wextra -Werror -Wpedantic -fno-strict-aliasing)
+    pfr_startup_frame_capture
+    PRIVATE
+      -Wall
+      -Wextra
+      -Werror
+      -Wpedantic
+      -fno-strict-aliasing)
 endif()
 
 add_test(NAME pfr_integration COMMAND pfr_integration)
 add_test(
   NAME pfr_startup_capture
-  COMMAND pfr_title_capture
+  COMMAND pfr_startup_frame_capture
           --mode
           game
           --output-dir
