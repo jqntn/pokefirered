@@ -9,14 +9,16 @@
 #include "pfr/audio.h"
 #include "pfr/core.h"
 
+#define PFR_MAX_AUTO_START_FRAMES 8
+
 typedef struct PfrOptions
 {
   bool headless;
   bool quit_on_title;
   bool quit_on_main_menu;
   uint32_t frame_limit;
-  uint32_t auto_press_start_frame;
-  bool auto_press_start;
+  uint32_t auto_press_start_frames[PFR_MAX_AUTO_START_FRAMES];
+  uint32_t auto_press_start_frame_count;
   const char* save_path;
   bool boot_demo;
   bool boot_sandbox;
@@ -47,8 +49,7 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
   options->quit_on_title = false;
   options->quit_on_main_menu = false;
   options->frame_limit = 0;
-  options->auto_press_start_frame = 0;
-  options->auto_press_start = false;
+  options->auto_press_start_frame_count = 0;
   options->save_path = NULL;
   options->boot_demo = false;
   options->boot_sandbox = false;
@@ -66,13 +67,21 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
         return false;
       }
     } else if (strcmp(argv[i], "--auto-press-start-frame") == 0) {
-      if (i + 1 >= argc ||
-          !pfr_parse_u32(argv[++i], &options->auto_press_start_frame)) {
+      uint32_t frame = 0;
+
+      if (i + 1 >= argc || !pfr_parse_u32(argv[++i], &frame)) {
         fprintf(stderr, "invalid --auto-press-start-frame value\n");
         return false;
       }
 
-      options->auto_press_start = true;
+      if (options->auto_press_start_frame_count >= PFR_MAX_AUTO_START_FRAMES) {
+        fprintf(stderr, "too many --auto-press-start-frame values\n");
+        return false;
+      }
+
+      options
+        ->auto_press_start_frames[options->auto_press_start_frame_count++] =
+        frame;
     } else if (strcmp(argv[i], "--save-path") == 0) {
       if (i + 1 >= argc) {
         fprintf(stderr, "missing --save-path value\n");
@@ -203,12 +212,41 @@ pfr_keys_for_frame(const PfrOptions* options,
                    uint32_t frame_index,
                    uint16_t keys)
 {
-  if (options->auto_press_start &&
-      frame_index == options->auto_press_start_frame) {
-    keys |= START_BUTTON;
+  uint32_t i;
+
+  for (i = 0; i < options->auto_press_start_frame_count; i++) {
+    if (frame_index == options->auto_press_start_frames[i]) {
+      keys |= START_BUTTON;
+      break;
+    }
   }
 
   return keys;
+}
+
+static int
+pfr_fail_requested_target(const char* target, uint32_t frame_count)
+{
+  fprintf(stderr,
+          "did not reach %s within %u frames\n",
+          target,
+          (unsigned)frame_count);
+  return 1;
+}
+
+static int
+pfr_fail_runtime_quit(void)
+{
+  const char* status_line = pfr_core_status_line();
+
+  if (status_line[0] != '\0') {
+    fprintf(stderr, "%s\n", status_line);
+  } else {
+    fprintf(stderr,
+            "runtime requested quit before reaching the requested state\n");
+  }
+
+  return 1;
 }
 
 static Rectangle
@@ -256,16 +294,24 @@ pfr_run_headless(const PfrOptions* options)
                        gPfrRuntimeState.frame_counter);
 
     if (options->quit_on_title && pfr_core_is_title_visible()) {
-      break;
+      return 0;
     }
 
     if (options->quit_on_main_menu && pfr_core_is_main_menu_visible()) {
-      break;
+      return 0;
     }
 
     if (pfr_core_should_quit()) {
-      break;
+      return pfr_fail_runtime_quit();
     }
+  }
+
+  if (options->quit_on_title) {
+    return pfr_fail_requested_target("the title screen", frames);
+  }
+
+  if (options->quit_on_main_menu) {
+    return pfr_fail_requested_target("the main menu", frames);
   }
 
   return 0;
@@ -326,11 +372,11 @@ pfr_run_windowed(const PfrOptions* options)
     }
 
     if (options->quit_on_title && pfr_core_is_title_visible()) {
-      break;
+      return 0;
     }
 
     if (options->quit_on_main_menu && pfr_core_is_main_menu_visible()) {
-      break;
+      return 0;
     }
 
     if (pfr_core_should_quit()) {
@@ -343,6 +389,18 @@ pfr_run_windowed(const PfrOptions* options)
   UnloadTexture(texture);
   CloseWindow();
 
+  if (pfr_core_should_quit()) {
+    return pfr_fail_runtime_quit();
+  }
+
+  if (options->quit_on_title) {
+    return pfr_fail_requested_target("the title screen", frame_index);
+  }
+
+  if (options->quit_on_main_menu) {
+    return pfr_fail_requested_target("the main menu", frame_index);
+  }
+
   return 0;
 }
 
@@ -350,6 +408,7 @@ int
 pfr_platform_main(int argc, char** argv)
 {
   PfrOptions options;
+  int result;
 
   if (!pfr_parse_options(argc, argv, &options)) {
     return 2;
@@ -360,15 +419,15 @@ pfr_platform_main(int argc, char** argv)
   } else if (options.boot_sandbox) {
     pfr_core_init(options.save_path, PFR_BOOT_SANDBOX);
   } else {
-    pfr_core_init(options.save_path, PFR_BOOT_FRONTEND);
+    pfr_core_init(options.save_path, PFR_BOOT_NORMAL);
   }
 
   if (options.headless) {
-    pfr_run_headless(&options);
+    result = pfr_run_headless(&options);
   } else {
-    pfr_run_windowed(&options);
+    result = pfr_run_windowed(&options);
   }
 
   pfr_core_shutdown();
-  return 0;
+  return result;
 }

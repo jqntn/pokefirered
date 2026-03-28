@@ -239,7 +239,12 @@ ObjAffineSet(struct ObjAffineSrcData* src, void* dest, s32 count, s32 offset)
 {
   const double angle_scale = 6.28318530717958647692 / 256.0;
   int16_t* matrix = (int16_t*)dest;
+  s32 stride = offset / (s32)sizeof(*matrix);
   s32 i;
+
+  if (stride <= 0) {
+    stride = 1;
+  }
 
   for (i = 0; i < count; i++) {
     double angle = src[i].rotation * angle_scale;
@@ -249,10 +254,10 @@ ObjAffineSet(struct ObjAffineSrcData* src, void* dest, s32 count, s32 offset)
     double sy = src[i].yScale / 256.0;
 
     matrix[0] = (s16)(cos_value * sx * 256.0);
-    matrix[offset] = (s16)(-sin_value * sx * 256.0);
-    matrix[offset * 2] = (s16)(sin_value * sy * 256.0);
-    matrix[offset * 3] = (s16)(cos_value * sy * 256.0);
-    matrix += offset * 4;
+    matrix[stride] = (s16)(-sin_value * sx * 256.0);
+    matrix[stride * 2] = (s16)(sin_value * sy * 256.0);
+    matrix[stride * 3] = (s16)(cos_value * sy * 256.0);
+    matrix += stride * 4;
   }
 }
 

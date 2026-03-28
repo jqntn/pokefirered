@@ -577,7 +577,7 @@ target_include_directories(pfr_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../in
 
 target_compile_definitions(
   pfr_game
-  PRIVATE MODERN=1 FIRERED ENGLISH NDEBUG _CRT_SECURE_NO_WARNINGS)
+  PRIVATE MODERN=1 FIRERED ENGLISH NDEBUG BUGFIX _CRT_SECURE_NO_WARNINGS)
 
 if(NOT MSVC)
   target_compile_options(pfr_game PRIVATE -fno-strict-aliasing)
@@ -631,10 +631,10 @@ add_test(
           -DPFR_ASSET_ROOT=${PFR_ASSET_ROOT}
           -P
           "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_title_flames_palette.cmake")
-add_test(NAME pfr_headless_boot COMMAND pokefirered --headless --frames 180 --quit-on-title)
+add_test(NAME pfr_headless_boot COMMAND pokefirered --headless --frames 1400 --quit-on-title)
 add_test(
   NAME pfr_headless_main_menu
-  COMMAND pokefirered --headless --frames 360 --auto-press-start-frame 90 --quit-on-main-menu)
+  COMMAND pokefirered --headless --frames 1500 --auto-press-start-frame 1260 --auto-press-start-frame 1280 --auto-press-start-frame 1300 --quit-on-main-menu)
 add_test(NAME pfr_headless_demo COMMAND pokefirered --demo --headless --frames 3 --quit-on-title)
 
 add_executable(pfr_integration tests/integration.c)

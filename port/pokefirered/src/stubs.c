@@ -342,10 +342,10 @@ StoreWordInTwoHalfwords(u16* dest, u32 data)
   dest[1] = (u16)(data >> 16);
 }
 
-u32
-LoadWordFromTwoHalfwords(u16* src)
+void
+LoadWordFromTwoHalfwords(u16* src, u32* dest)
 {
-  return src[0] | (src[1] << 16);
+  *dest = src[0] | ((s16)src[1] << 16);
 }
 
 u8 gHeap[0x1C000]; // 112KB buffer as per original game

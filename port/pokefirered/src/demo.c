@@ -189,9 +189,10 @@ pfr_demo_boot(void)
   REG_BG0HOFS = 0;
   REG_BG0VOFS = 0;
 
-  gPfrRuntimeState.title_visible = true;
   CreateTask(pfr_demo_task, 0);
   SetMainCallback2(pfr_demo_main_callback);
+  gPfrRuntimeState.title_visible = true;
+  gPfrRuntimeState.main_menu_visible = false;
   pfr_update_sprite_oam();
   pfr_update_status();
 }

@@ -100,11 +100,12 @@ AgbMain(void)
 void
 SetMainCallback2(MainCallback callback)
 {
+  gPfrRuntimeState.title_visible = false;
+  gPfrRuntimeState.main_menu_visible = false;
+
   if (callback == CB2_InitTitleScreen) {
     gPfrRuntimeState.title_visible = true;
-    gPfrRuntimeState.main_menu_visible = false;
   } else if (callback == CB2_InitMainMenu) {
-    gPfrRuntimeState.title_visible = false;
     gPfrRuntimeState.main_menu_visible = true;
   }
 
@@ -282,6 +283,8 @@ pfr_game_boot(void)
   gMain.callback1 = NULL;
   gMain.callback2 = CB2_InitCopyrightScreenAfterBootup;
   gMain.state = 0;
+  gPfrRuntimeState.title_visible = false;
+  gPfrRuntimeState.main_menu_visible = false;
 }
 
 void

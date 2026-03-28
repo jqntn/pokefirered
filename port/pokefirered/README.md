@@ -28,6 +28,6 @@ These controls apply to the current desktop build for now.
 
 ## Notes
 
-- The native build currently boots to the title screen / main menu flow by default.
+- The native build now boots through the original startup flow: copyright screen, intro, title screen, then the native main menu.
 - `--demo` starts the PAL demo path instead, using the same controls.
 - Control mappings may still change as the port matures.
