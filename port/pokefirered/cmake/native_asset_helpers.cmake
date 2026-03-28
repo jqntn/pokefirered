@@ -99,6 +99,7 @@ function(pfr_asset_palette)
 
   pfr_generate_native_asset(output "${PFR_OUTPUT}" gbapal "${PFR_SOURCE}")
   pfr_append_files_to_collection("${PFR_COLLECTION}" "${output}")
+  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()
 
 function(pfr_asset_bin_lz)
@@ -110,6 +111,7 @@ function(pfr_asset_bin_lz)
 
   pfr_generate_native_asset(output "${PFR_OUTPUT}" lz "${PFR_SOURCE}")
   pfr_append_files_to_collection("${PFR_COLLECTION}" "${output}")
+  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()
 
 function(pfr_asset_tile4)
@@ -125,6 +127,7 @@ function(pfr_asset_tile4)
 
   pfr_generate_raw_tiles(output tile4 "${PFR_OUTPUT}" "${PFR_PNG}" "${PFR_PALETTE}")
   pfr_append_files_to_collection("${PFR_COLLECTION}" "${output}")
+  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()
 
 function(pfr_asset_tile8)
@@ -140,6 +143,7 @@ function(pfr_asset_tile8)
 
   pfr_generate_raw_tiles(output tile8 "${PFR_OUTPUT}" "${PFR_PNG}" "${PFR_PALETTE}")
   pfr_append_files_to_collection("${PFR_COLLECTION}" "${output}")
+  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()
 
 function(pfr_asset_tile4_lz)
@@ -155,6 +159,7 @@ function(pfr_asset_tile4_lz)
 
   pfr_generate_compressed_tiles(output tile4 "${PFR_STEM}" "${PFR_PNG}" "${PFR_PALETTE}")
   pfr_append_files_to_collection("${PFR_COLLECTION}" "${output}")
+  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()
 
 function(pfr_asset_tile8_lz)
@@ -170,6 +175,7 @@ function(pfr_asset_tile8_lz)
 
   pfr_generate_compressed_tiles(output tile8 "${PFR_STEM}" "${PFR_PNG}" "${PFR_PALETTE}")
   pfr_append_files_to_collection("${PFR_COLLECTION}" "${output}")
+  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()
 
 function(pfr_asset_font)
@@ -181,6 +187,7 @@ function(pfr_asset_font)
 
   pfr_generate_native_asset(output "${PFR_OUTPUT}" "${PFR_MODE}" "${PFR_PNG}")
   pfr_append_files_to_collection("${PFR_COLLECTION}" "${output}")
+  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()
 
 function(pfr_asset_tiles_bundle)
@@ -217,6 +224,7 @@ function(pfr_asset_tiles_bundle)
   endif()
 
   pfr_append_files_to_collection("${PFR_COLLECTION}" "${palette_output}" "${tile_output}")
+  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()
 
 function(pfr_asset_tilemap_bundle)
@@ -257,4 +265,5 @@ function(pfr_asset_tilemap_bundle)
   pfr_generate_native_asset(map_output "${PFR_MAP_OUTPUT}" lz "${PFR_MAP_SOURCE}")
   pfr_append_files_to_collection(
     "${PFR_COLLECTION}" "${palette_output}" "${tile_output}" "${map_output}")
+  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()

@@ -1,6 +1,4 @@
 function(pfr_define_native_tests)
-  enable_testing()
-
   pfr_add_port_test_executable(pfr_smoke tests/smoke.c)
   pfr_add_port_test_executable(pfr_integration tests/integration.c)
   pfr_add_port_test_executable(

@@ -52,6 +52,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/generated_sources.cmake)
 
 pfr_define_native_runtime_targets()
 
+enable_testing()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/native_tests.cmake)
 pfr_define_native_tests()
 
