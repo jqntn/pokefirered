@@ -940,19 +940,6 @@ pfr_add_preprocessed_c(
   "${PFR_ASSET_ROOT}"
   ${PFR_NATIVE_ASSET_FILES})
 
-set(PFR_GENERATED_TEXT_PRINTER "${PFR_GENERATED_DIR}/text_printer.native.c")
-add_custom_command(
-  OUTPUT "${PFR_GENERATED_TEXT_PRINTER}"
-  COMMAND ${CMAKE_COMMAND} -E make_directory "${PFR_GENERATED_DIR}"
-  COMMAND
-    ${CMAKE_COMMAND}
-    -DPFR_SOURCE="${PFR_REPO_ROOT}/src/text_printer.c"
-    -DPFR_OUTPUT="${PFR_GENERATED_TEXT_PRINTER}"
-    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_text_printer.cmake"
-  DEPENDS
-    "${PFR_REPO_ROOT}/src/text_printer.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_text_printer.cmake")
-
 # --------------------------------------------------------------------------
 # pfr_game: original game source files compiled through the port shim headers
 # --------------------------------------------------------------------------
@@ -964,7 +951,7 @@ set(PFR_GAME_SOURCES
     ${PFR_GENERATED_TEXT}
     ../../src/blend_palette.c
     ../../src/blit.c
-    ${PFR_GENERATED_TEXT_PRINTER}
+    ../../src/text_printer.c
     ${PFR_GENERATED_STRINGS}
     ${PFR_GENERATED_INTRO}
     ../../src/bg.c
