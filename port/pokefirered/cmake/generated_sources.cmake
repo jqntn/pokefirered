@@ -1,0 +1,41 @@
+pfr_add_preprocessed_c(
+  PFR_GENERATED_TEXT
+  "${PFR_REPO_ROOT}/src/text.c"
+  "text.native.c"
+  "${PFR_ASSET_ROOT}"
+  ${PFR_TEXT_ASSET_FILES})
+pfr_add_preprocessed_c(
+  PFR_GENERATED_STRINGS
+  "${PFR_REPO_ROOT}/src/strings.c"
+  "strings.native.c"
+  "${PFR_REPO_ROOT}")
+pfr_add_preprocessed_c(
+  PFR_GENERATED_TEXT_WINDOW_GRAPHICS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/text_window_assets.c"
+  "text_window_assets.native.c"
+  "${PFR_ASSET_ROOT}"
+  ${PFR_NATIVE_ASSET_FILES})
+pfr_add_preprocessed_c(
+  PFR_GENERATED_NATIVE_ASSETS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/native_assets.c"
+  "native_assets.native.c"
+  "${PFR_ASSET_ROOT}"
+  ${PFR_NATIVE_ASSET_FILES})
+pfr_add_preprocessed_c(
+  PFR_GENERATED_INTRO
+  "${PFR_REPO_ROOT}/src/intro.c"
+  "intro.native.c"
+  "${PFR_ASSET_ROOT}"
+  ${PFR_INTRO_ASSET_FILES})
+pfr_add_preprocessed_c(
+  PFR_GENERATED_TITLE_SCREEN
+  "${PFR_REPO_ROOT}/src/title_screen.c"
+  "title_screen.native.c"
+  "${PFR_ASSET_ROOT}"
+  ${PFR_NATIVE_ASSET_FILES})
+pfr_add_preprocessed_c(
+  PFR_GENERATED_MAIN_MENU
+  "${PFR_REPO_ROOT}/src/main_menu.c"
+  "main_menu.native.c"
+  "${PFR_ASSET_ROOT}"
+  ${PFR_NATIVE_ASSET_FILES})
