@@ -443,6 +443,93 @@ test_renderer_uses_captured_scanline_bldy(void)
 }
 
 static void
+test_renderer_uses_captured_scanline_window_visibility(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_backdrop;
+  uint32_t expected_bg0;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[1] = 0x001F;
+  gPfrVram[0] = 0x11;
+  gPfrVram[4] = 0x11;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31) = 0;
+
+  pfr_renderer_init();
+
+  REG_BG0CNT = BGCNT_SCREENBASE(31) | BGCNT_16COLOR | BGCNT_PRIORITY(0);
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_BG0_ON | DISPCNT_WIN0_ON;
+  REG_WIN0H = WIN_RANGE(0, DISPLAY_WIDTH);
+  REG_WINOUT = 0;
+
+  pfr_renderer_begin_frame_capture();
+
+  REG_WIN0V = WIN_RANGE(0, 1);
+  REG_WININ = WININ_WIN0_BG0;
+  pfr_renderer_capture_scanline(0);
+
+  REG_WIN0V = WIN_RANGE(1, 2);
+  REG_WININ = 0;
+  pfr_renderer_capture_scanline(1);
+
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_backdrop = test_rgb555_to_rgba8888(0x0400);
+  expected_bg0 = test_rgb555_to_rgba8888(0x001F);
+  assert(framebuffer[0] == expected_bg0);
+  assert(framebuffer[DISPLAY_WIDTH] == expected_backdrop);
+}
+
+static void
+test_renderer_uses_captured_scanline_bg0hofs(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_tile0;
+  uint32_t expected_tile1;
+  u8* tile0 = gPfrVram;
+  u8* tile1 = gPfrVram + 32;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  memset(tile0, 0x11, 32);
+  memset(tile1, 0x22, 32);
+  ((u16*)gPfrPltt)[1] = 0x001F;
+  ((u16*)gPfrPltt)[2] = 0x03E0;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31) = 0;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31 + sizeof(u16)) = 1;
+
+  pfr_renderer_init();
+
+  REG_BG0CNT = BGCNT_SCREENBASE(31) | BGCNT_16COLOR | BGCNT_PRIORITY(0);
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_BG0_ON;
+
+  pfr_renderer_begin_frame_capture();
+  REG_BG0HOFS = 0;
+  pfr_renderer_capture_scanline(0);
+  REG_BG0HOFS = 8;
+  pfr_renderer_capture_scanline(1);
+
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_tile0 = test_rgb555_to_rgba8888(0x001F);
+  expected_tile1 = test_rgb555_to_rgba8888(0x03E0);
+  assert(framebuffer[0] == expected_tile0);
+  assert(framebuffer[DISPLAY_WIDTH] == expected_tile1);
+}
+
+static void
 test_cpuset(void)
 {
   u16 src16[4] = { 1, 2, 3, 4 };
@@ -659,6 +746,13 @@ main(void)
   fflush(stdout);
   test_renderer_uses_captured_scanline_bldy();
   printf("pfr_smoke: test_renderer_uses_captured_scanline_bldy ok\n");
+  fflush(stdout);
+  test_renderer_uses_captured_scanline_window_visibility();
+  printf(
+    "pfr_smoke: test_renderer_uses_captured_scanline_window_visibility ok\n");
+  fflush(stdout);
+  test_renderer_uses_captured_scanline_bg0hofs();
+  printf("pfr_smoke: test_renderer_uses_captured_scanline_bg0hofs ok\n");
   fflush(stdout);
   test_storage_roundtrip();
   printf("pfr_smoke: test_storage_roundtrip ok\n");

@@ -785,6 +785,167 @@ pfr_generate_tile_data(const char* input_path,
 }
 
 static void
+pfr_free_png_index_info(PfrPngIndexInfo* info)
+{
+  free(info->indices);
+  info->indices = NULL;
+}
+
+static void
+pfr_pack_indexed_2bpp_png(const char* input_path,
+                          const PfrPngIndexInfo* png_index_info,
+                          PfrByteBuffer* packed_rows)
+{
+  int y;
+  int x;
+
+  if (png_index_info->indices == NULL || png_index_info->width <= 0 ||
+      png_index_info->height <= 0 || (png_index_info->width & 3) != 0) {
+    pfr_fail("unsupported font png geometry", input_path);
+  }
+
+  pfr_buffer_reserve(packed_rows,
+                     (size_t)png_index_info->width *
+                       (size_t)png_index_info->height / 4U);
+
+  for (y = 0; y < png_index_info->height; y++) {
+    for (x = 0; x < png_index_info->width; x += 4) {
+      unsigned char indices[4];
+      int i;
+
+      for (i = 0; i < 4; i++) {
+        indices[i] =
+          png_index_info->indices[(size_t)y * (size_t)png_index_info->width +
+                                  (size_t)x + (size_t)i];
+        if (indices[i] > 3) {
+          pfr_fail("font png contains colors outside the 2bpp range",
+                   input_path);
+        }
+      }
+
+      pfr_buffer_push(packed_rows,
+                      (unsigned char)((indices[0] << 6) | (indices[1] << 4) |
+                                      (indices[2] << 2) | indices[3]));
+    }
+  }
+}
+
+static void
+pfr_generate_latfont(const char* input_path, const char* output_path)
+{
+  PfrPngIndexInfo png_index_info = { 0 };
+  PfrByteBuffer packed_rows = { 0 };
+  unsigned char* output = NULL;
+  int row_size = 0;
+  int num_rows = 0;
+  int row;
+  int column;
+  int glyph_tile;
+  int tile_row;
+  size_t dest_offset = 0;
+
+  if (!pfr_try_load_png_index_info(input_path, &png_index_info) ||
+      png_index_info.width != 256 || png_index_info.height <= 0 ||
+      (png_index_info.height % 16) != 0) {
+    pfr_free_png_index_info(&png_index_info);
+    pfr_fail("invalid latin font png", input_path);
+  }
+
+  pfr_pack_indexed_2bpp_png(input_path, &png_index_info, &packed_rows);
+  output = malloc(packed_rows.size);
+  if (output == NULL) {
+    pfr_free_png_index_info(&png_index_info);
+    pfr_buffer_free(&packed_rows);
+    pfr_fail("failed to allocate latin font buffer", input_path);
+  }
+
+  row_size = png_index_info.width / 4;
+  num_rows = png_index_info.height / 16;
+
+  for (row = 0; row < num_rows; row++) {
+    for (column = 0; column < 16; column++) {
+      for (glyph_tile = 0; glyph_tile < 4; glyph_tile++) {
+        int pixels_x = column * 16 + (glyph_tile & 1) * 8;
+
+        for (tile_row = 0; tile_row < 8; tile_row++) {
+          int pixels_y = row * 16 + (glyph_tile >> 1) * 8 + tile_row;
+          size_t src_offset =
+            (size_t)pixels_y * (size_t)row_size + (size_t)(pixels_x / 4);
+
+          output[dest_offset++] = packed_rows.data[src_offset + 1];
+          output[dest_offset++] = packed_rows.data[src_offset];
+        }
+      }
+    }
+  }
+
+  pfr_write_file(output_path, output, packed_rows.size);
+  free(output);
+  pfr_buffer_free(&packed_rows);
+  pfr_free_png_index_info(&png_index_info);
+}
+
+static void
+pfr_generate_fwjpnfont(const char* input_path, const char* output_path)
+{
+  PfrPngIndexInfo png_index_info = { 0 };
+  PfrByteBuffer packed_rows = { 0 };
+  unsigned char* output = NULL;
+  int row_size = 0;
+  int num_rows = 0;
+  int row;
+  int column;
+  int glyph_tile;
+  int tile_row;
+
+  if (!pfr_try_load_png_index_info(input_path, &png_index_info) ||
+      png_index_info.width != 256 || png_index_info.height <= 0 ||
+      (png_index_info.height % 16) != 0) {
+    pfr_free_png_index_info(&png_index_info);
+    pfr_fail("invalid fullwidth japanese font png", input_path);
+  }
+
+  pfr_pack_indexed_2bpp_png(input_path, &png_index_info, &packed_rows);
+  output = malloc(packed_rows.size);
+  if (output == NULL) {
+    pfr_free_png_index_info(&png_index_info);
+    pfr_buffer_free(&packed_rows);
+    pfr_fail("failed to allocate fullwidth japanese font buffer", input_path);
+  }
+
+  row_size = png_index_info.width / 4;
+  num_rows = png_index_info.height / 16;
+
+  for (row = 0; row < num_rows; row++) {
+    for (column = 0; column < 16; column++) {
+      unsigned int glyph_index = (unsigned int)(row * 16 + column);
+
+      for (glyph_tile = 0; glyph_tile < 4; glyph_tile++) {
+        int pixels_x = column * 16 + (glyph_tile & 1) * 8;
+        size_t dest_offset = 512U * (glyph_index >> 3) +
+                             32U * (glyph_index & 7U) +
+                             256U * (unsigned int)(glyph_tile >> 1) +
+                             16U * (unsigned int)(glyph_tile & 1);
+
+        for (tile_row = 0; tile_row < 8; tile_row++) {
+          int pixels_y = row * 16 + (glyph_tile >> 1) * 8 + tile_row;
+          size_t src_offset =
+            (size_t)pixels_y * (size_t)row_size + (size_t)(pixels_x / 4);
+
+          output[dest_offset++] = packed_rows.data[src_offset + 1];
+          output[dest_offset++] = packed_rows.data[src_offset];
+        }
+      }
+    }
+  }
+
+  pfr_write_file(output_path, output, packed_rows.size);
+  free(output);
+  pfr_buffer_free(&packed_rows);
+  pfr_free_png_index_info(&png_index_info);
+}
+
+static void
 pfr_generate_gbapal(const char* input_path, const char* output_path)
 {
   PfrColorPalette palette = pfr_load_palette(input_path);
@@ -899,8 +1060,12 @@ pfr_print_usage(const char* program)
           "usage:\n"
           "  %s tile4 <input.png> <output> [palette.pal|palette.png]\n"
           "  %s tile8 <input.png> <output> [palette.pal|palette.png]\n"
+          "  %s latfont <input.png> <output>\n"
+          "  %s fwjpnfont <input.png> <output>\n"
           "  %s gbapal <input.pal|input.png> <output>\n"
           "  %s lz <input> <output>\n",
+          program,
+          program,
           program,
           program,
           program,
@@ -927,6 +1092,16 @@ main(int argc, char** argv)
 
   if (strcmp(argv[1], "gbapal") == 0) {
     pfr_generate_gbapal(argv[2], argv[3]);
+    return EXIT_SUCCESS;
+  }
+
+  if (strcmp(argv[1], "latfont") == 0) {
+    pfr_generate_latfont(argv[2], argv[3]);
+    return EXIT_SUCCESS;
+  }
+
+  if (strcmp(argv[1], "fwjpnfont") == 0) {
+    pfr_generate_fwjpnfont(argv[2], argv[3]);
     return EXIT_SUCCESS;
   }
 

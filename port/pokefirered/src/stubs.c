@@ -11,6 +11,7 @@
 #include "event_data.h"
 #include "gba/m4a_internal.h"
 #include "gba/types.h"
+#include "gpu_regs.h"
 #include "help_system.h"
 #include "link.h"
 #include "link_rfu.h"
@@ -25,6 +26,7 @@
 #include "scanline_effect.h"
 #include "sound.h"
 #include "sprite.h"
+#include "task.h"
 #include "window.h"
 
 static bool8 sBgmPlaying;
@@ -35,6 +37,9 @@ static u16 sCurrentSe;
 static u16 sTempTileDataBufferCursor;
 static void* sTempTileDataBuffers[32];
 static const u8 sEmptyPlaceholder[] = { EOS };
+
+static void
+Task_SmoothBlendLayers(u8 taskId);
 
 static u16
 pfr_copy_decompressed_tile_data_to_vram(u8 bgId,
@@ -254,18 +259,60 @@ StartBlendTask(u8 eva_start,
                u8 ev_step,
                u8 priority)
 {
-  (void)eva_start;
-  (void)evb_start;
-  (void)eva_end;
-  (void)evb_end;
-  (void)ev_step;
-  (void)priority;
+  u8 taskId;
+
+  if (ev_step == 0) {
+    SetGpuReg(REG_OFFSET_BLDALPHA, (u16)((evb_end << 8) | eva_end));
+    return;
+  }
+
+  taskId = CreateTask(Task_SmoothBlendLayers, priority);
+  gTasks[taskId].data[0] = eva_start << 8;
+  gTasks[taskId].data[1] = evb_start << 8;
+  gTasks[taskId].data[2] = eva_end;
+  gTasks[taskId].data[3] = evb_end;
+  gTasks[taskId].data[4] = (s16)((eva_end - eva_start) * 256 / ev_step);
+  gTasks[taskId].data[5] = (s16)((evb_end - evb_start) * 256 / ev_step);
+  gTasks[taskId].data[8] = ev_step;
+  SetGpuReg(REG_OFFSET_BLDALPHA, (u16)((evb_start << 8) | eva_start));
 }
 
 bool8
 IsBlendTaskActive(void)
 {
-  return FALSE;
+  return FuncIsActiveTask(Task_SmoothBlendLayers);
+}
+
+static void
+Task_SmoothBlendLayers(u8 taskId)
+{
+  s16* data = gTasks[taskId].data;
+
+  if (data[8] == 0) {
+    DestroyTask(taskId);
+    return;
+  }
+
+  if (data[6] == 0) {
+    data[0] = (s16)(data[0] + data[4]);
+    data[6] = 1;
+  } else {
+    if (--data[8] != 0) {
+      data[1] = (s16)(data[1] + data[5]);
+    } else {
+      data[0] = (s16)(data[2] << 8);
+      data[1] = (s16)(data[3] << 8);
+    }
+
+    data[6] = 0;
+  }
+
+  SetGpuReg(REG_OFFSET_BLDALPHA,
+            (u16)((data[1] & (s16)~0x00FF) | ((u16)data[0] >> 8)));
+
+  if (data[8] == 0) {
+    DestroyTask(taskId);
+  }
 }
 
 void
@@ -362,52 +409,6 @@ const u32 gMultiBootProgram_PokemonColosseum_Start[1] = { 0 };
 bool8 gDifferentSaveFile = FALSE;
 u8 gExitStairsMovementDisabled = FALSE;
 
-void
-BlendPalette(u16 palOffset, u16 numEntries, u8 coeff, u16 blendColor)
-{
-  (void)palOffset;
-  (void)numEntries;
-  (void)coeff;
-  (void)blendColor;
-}
-
-struct Bitmap;
-void
-BlitBitmapRect4Bit(const struct Bitmap* src,
-                   struct Bitmap* dest,
-                   u16 srcX,
-                   u16 srcY,
-                   u16 destX,
-                   u16 destY,
-                   u16 width,
-                   u16 height,
-                   u8 colorKey)
-{
-  (void)src;
-  (void)dest;
-  (void)srcX;
-  (void)srcY;
-  (void)destX;
-  (void)destY;
-  (void)width;
-  (void)height;
-  (void)colorKey;
-}
-void
-FillBitmapRect4Bit(struct Bitmap* dest,
-                   u16 x,
-                   u16 y,
-                   u16 width,
-                   u16 height,
-                   u8 colorIndex)
-{
-  (void)dest;
-  (void)x;
-  (void)y;
-  (void)width;
-  (void)height;
-  (void)colorIndex;
-}
 void
 DrawSpindaSpots(u16 species, u32 personality, u8* dest, bool8 isFrontPic)
 {

@@ -23,6 +23,15 @@ typedef struct PfrWindowState
 typedef struct PfrLineRegs
 {
   u16 dispcnt;
+  u16 bgcnt[4];
+  u16 bghofs[4];
+  u16 bgvofs[4];
+  s16 bgpa[2];
+  s16 bgpb[2];
+  s16 bgpc[2];
+  s16 bgpd[2];
+  s32 bgx[2];
+  s32 bgy[2];
   u16 winin;
   u16 winout;
   u16 win0h;
@@ -223,41 +232,23 @@ pfr_text_screen_entry_offset(int map_width_tiles, int tile_x, int tile_y)
 }
 
 static PfrPixelSample
-pfr_sample_text_bg(int bg_index, int screen_x, int screen_y)
+pfr_sample_text_bg(const PfrLineRegs* line_regs,
+                   int bg_index,
+                   int screen_x,
+                   int screen_y)
 {
-  static const u16 sBgCntOffsets[] = {
-    REG_OFFSET_BG0CNT,
-    REG_OFFSET_BG1CNT,
-    REG_OFFSET_BG2CNT,
-    REG_OFFSET_BG3CNT,
-  };
-  static const u16 sBgHofsOffsets[] = {
-    REG_OFFSET_BG0HOFS,
-    REG_OFFSET_BG1HOFS,
-    REG_OFFSET_BG2HOFS,
-    REG_OFFSET_BG3HOFS,
-  };
-  static const u16 sBgVofsOffsets[] = {
-    REG_OFFSET_BG0VOFS,
-    REG_OFFSET_BG1VOFS,
-    REG_OFFSET_BG2VOFS,
-    REG_OFFSET_BG3VOFS,
-  };
   const u16* palette = (const u16*)gPfrPltt;
-  u16 bgcnt = *(const vu16*)(gPfrIo + sBgCntOffsets[bg_index]);
+  u16 bgcnt = line_regs->bgcnt[bg_index];
   int screen_size = (bgcnt >> 14) & 3;
   int map_width_tiles = ((screen_size & 1) != 0) ? 64 : 32;
   int map_height_tiles = (screen_size >= 2) ? 64 : 32;
   int char_base = ((bgcnt >> 2) & 3) * BG_CHAR_SIZE;
   int screen_base = ((bgcnt >> 8) & 31) * BG_SCREEN_SIZE;
-  int x = (screen_x + *(const vu16*)(gPfrIo + sBgHofsOffsets[bg_index])) &
-          (map_width_tiles * 8 - 1);
-  int y = (screen_y + *(const vu16*)(gPfrIo + sBgVofsOffsets[bg_index])) &
-          (map_height_tiles * 8 - 1);
-  int tile_x = x / 8;
-  int tile_y = y / 8;
-  size_t screen_offset =
-    screen_base + pfr_text_screen_entry_offset(map_width_tiles, tile_x, tile_y);
+  int x;
+  int y;
+  int tile_x;
+  int tile_y;
+  size_t screen_offset;
   u16 entry;
   int tile_number;
   int palette_bank;
@@ -266,6 +257,13 @@ pfr_sample_text_bg(int bg_index, int screen_x, int screen_y)
   size_t tile_offset;
   uint8_t color_index;
   PfrPixelSample sample = { false, (u8)(bgcnt & 3), (u8)bg_index, 0 };
+
+  x = (screen_x + line_regs->bghofs[bg_index]) & (map_width_tiles * 8 - 1);
+  y = (screen_y + line_regs->bgvofs[bg_index]) & (map_height_tiles * 8 - 1);
+  tile_x = x / 8;
+  tile_y = y / 8;
+  screen_offset =
+    screen_base + pfr_text_screen_entry_offset(map_width_tiles, tile_x, tile_y);
 
   if (screen_offset + sizeof(u16) > BG_VRAM_SIZE) {
     return sample;
@@ -326,26 +324,25 @@ pfr_sample_text_bg(int bg_index, int screen_x, int screen_y)
 }
 
 static PfrPixelSample
-pfr_sample_affine_bg(int bg_index, int screen_x, int screen_y)
+pfr_sample_affine_bg(const PfrLineRegs* line_regs,
+                     int bg_index,
+                     int screen_x,
+                     int screen_y)
 {
-  static const u16 sBgCntOffsets[] = {
-    REG_OFFSET_BG2CNT,
-    REG_OFFSET_BG3CNT,
-  };
   const u16* palette = (const u16*)gPfrPltt;
   int slot = bg_index - 2;
-  u16 bgcnt = *(const vu16*)(gPfrIo + sBgCntOffsets[slot]);
+  u16 bgcnt = line_regs->bgcnt[bg_index];
   int map_size = 128 << ((bgcnt >> 14) & 3);
   int map_tiles = map_size / 8;
   int char_base = ((bgcnt >> 2) & 3) * BG_CHAR_SIZE;
   int screen_base = ((bgcnt >> 8) & 31) * BG_SCREEN_SIZE;
   int wrap = (bgcnt >> 13) & 1;
-  s32 pa = (bg_index == 2) ? REG_BG2PA : REG_BG3PA;
-  s32 pb = (bg_index == 2) ? REG_BG2PB : REG_BG3PB;
-  s32 pc = (bg_index == 2) ? REG_BG2PC : REG_BG3PC;
-  s32 pd = (bg_index == 2) ? REG_BG2PD : REG_BG3PD;
-  s32 ref_x = (bg_index == 2) ? REG_BG2X : REG_BG3X;
-  s32 ref_y = (bg_index == 2) ? REG_BG2Y : REG_BG3Y;
+  s32 pa = line_regs->bgpa[slot];
+  s32 pb = line_regs->bgpb[slot];
+  s32 pc = line_regs->bgpc[slot];
+  s32 pd = line_regs->bgpd[slot];
+  s32 ref_x = line_regs->bgx[slot];
+  s32 ref_y = line_regs->bgy[slot];
   s32 tex_x = ref_x + pa * screen_x + pb * screen_y;
   s32 tex_y = ref_y + pc * screen_x + pd * screen_y;
   int src_x = tex_x >> 8;
@@ -395,6 +392,7 @@ pfr_sample_affine_bg(int bg_index, int screen_x, int screen_y)
 static void
 pfr_sample_backgrounds(int screen_x,
                        int screen_y,
+                       const PfrLineRegs* line_regs,
                        u16 dispcnt,
                        u8 visible_layers,
                        PfrPixelSample* best,
@@ -438,9 +436,9 @@ pfr_sample_backgrounds(int screen_x,
     }
 
     if (uses_text) {
-      sample = pfr_sample_text_bg(bg_index, screen_x, screen_y);
+      sample = pfr_sample_text_bg(line_regs, bg_index, screen_x, screen_y);
     } else {
-      sample = pfr_sample_affine_bg(bg_index, screen_x, screen_y);
+      sample = pfr_sample_affine_bg(line_regs, bg_index, screen_x, screen_y);
     }
 
     if (!sample.opaque) {
@@ -749,6 +747,30 @@ pfr_renderer_capture_scanline(int scanline)
 
   line_regs = &sLineRegs[scanline];
   line_regs->dispcnt = REG_DISPCNT;
+  line_regs->bgcnt[0] = REG_BG0CNT;
+  line_regs->bgcnt[1] = REG_BG1CNT;
+  line_regs->bgcnt[2] = REG_BG2CNT;
+  line_regs->bgcnt[3] = REG_BG3CNT;
+  line_regs->bghofs[0] = REG_BG0HOFS;
+  line_regs->bghofs[1] = REG_BG1HOFS;
+  line_regs->bghofs[2] = REG_BG2HOFS;
+  line_regs->bghofs[3] = REG_BG3HOFS;
+  line_regs->bgvofs[0] = REG_BG0VOFS;
+  line_regs->bgvofs[1] = REG_BG1VOFS;
+  line_regs->bgvofs[2] = REG_BG2VOFS;
+  line_regs->bgvofs[3] = REG_BG3VOFS;
+  line_regs->bgpa[0] = (s16)REG_BG2PA;
+  line_regs->bgpb[0] = (s16)REG_BG2PB;
+  line_regs->bgpc[0] = (s16)REG_BG2PC;
+  line_regs->bgpd[0] = (s16)REG_BG2PD;
+  line_regs->bgx[0] = (s32)REG_BG2X;
+  line_regs->bgy[0] = (s32)REG_BG2Y;
+  line_regs->bgpa[1] = (s16)REG_BG3PA;
+  line_regs->bgpb[1] = (s16)REG_BG3PB;
+  line_regs->bgpc[1] = (s16)REG_BG3PC;
+  line_regs->bgpd[1] = (s16)REG_BG3PD;
+  line_regs->bgx[1] = (s32)REG_BG3X;
+  line_regs->bgy[1] = (s32)REG_BG3Y;
   line_regs->winin = REG_WININ;
   line_regs->winout = REG_WINOUT;
   line_regs->win0h = REG_WIN0H;
@@ -767,18 +789,56 @@ pfr_renderer_render_frame(void)
   int x;
   int y;
 
-  if ((REG_DISPCNT & DISPCNT_FORCED_BLANK) != 0) {
-    memset(sFramebuffer, 0xFF, sizeof(sFramebuffer));
-    return;
-  }
-
   for (y = 0; y < DISPLAY_HEIGHT; y++) {
-    PfrLineRegs fallback_line = { REG_DISPCNT, REG_WININ,  REG_WINOUT,
-                                  REG_WIN0H,   REG_WIN0V,  REG_WIN1H,
-                                  REG_WIN1V,   REG_BLDCNT, REG_BLDALPHA,
-                                  REG_BLDY,    true };
+    PfrLineRegs fallback_line = { 0 };
     const PfrLineRegs* line_regs =
       sLineRegs[y].valid ? &sLineRegs[y] : &fallback_line;
+
+    if (!sLineRegs[y].valid) {
+      fallback_line.dispcnt = REG_DISPCNT;
+      fallback_line.bgcnt[0] = REG_BG0CNT;
+      fallback_line.bgcnt[1] = REG_BG1CNT;
+      fallback_line.bgcnt[2] = REG_BG2CNT;
+      fallback_line.bgcnt[3] = REG_BG3CNT;
+      fallback_line.bghofs[0] = REG_BG0HOFS;
+      fallback_line.bghofs[1] = REG_BG1HOFS;
+      fallback_line.bghofs[2] = REG_BG2HOFS;
+      fallback_line.bghofs[3] = REG_BG3HOFS;
+      fallback_line.bgvofs[0] = REG_BG0VOFS;
+      fallback_line.bgvofs[1] = REG_BG1VOFS;
+      fallback_line.bgvofs[2] = REG_BG2VOFS;
+      fallback_line.bgvofs[3] = REG_BG3VOFS;
+      fallback_line.bgpa[0] = (s16)REG_BG2PA;
+      fallback_line.bgpb[0] = (s16)REG_BG2PB;
+      fallback_line.bgpc[0] = (s16)REG_BG2PC;
+      fallback_line.bgpd[0] = (s16)REG_BG2PD;
+      fallback_line.bgx[0] = (s32)REG_BG2X;
+      fallback_line.bgy[0] = (s32)REG_BG2Y;
+      fallback_line.bgpa[1] = (s16)REG_BG3PA;
+      fallback_line.bgpb[1] = (s16)REG_BG3PB;
+      fallback_line.bgpc[1] = (s16)REG_BG3PC;
+      fallback_line.bgpd[1] = (s16)REG_BG3PD;
+      fallback_line.bgx[1] = (s32)REG_BG3X;
+      fallback_line.bgy[1] = (s32)REG_BG3Y;
+      fallback_line.winin = REG_WININ;
+      fallback_line.winout = REG_WINOUT;
+      fallback_line.win0h = REG_WIN0H;
+      fallback_line.win0v = REG_WIN0V;
+      fallback_line.win1h = REG_WIN1H;
+      fallback_line.win1v = REG_WIN1V;
+      fallback_line.bldcnt = REG_BLDCNT;
+      fallback_line.bldalpha = REG_BLDALPHA;
+      fallback_line.bldy = REG_BLDY;
+      fallback_line.valid = true;
+    }
+
+    if ((line_regs->dispcnt & DISPCNT_FORCED_BLANK) != 0) {
+      for (x = 0; x < DISPLAY_WIDTH; x++) {
+        sFramebuffer[y * DISPLAY_WIDTH + x] = 0xFFFFFFFFU;
+      }
+
+      continue;
+    }
 
     for (x = 0; x < DISPLAY_WIDTH; x++) {
       PfrWindowState window_state = pfr_window_state_for_pixel(x, y, line_regs);
@@ -795,6 +855,7 @@ pfr_renderer_render_frame(void)
 
       pfr_sample_backgrounds(x,
                              y,
+                             line_regs,
                              line_regs->dispcnt,
                              window_state.visible_layers,
                              &bg_top,
