@@ -286,16 +286,3 @@ pfr_game_boot(void)
   gPfrRuntimeState.title_visible = false;
   gPfrRuntimeState.main_menu_visible = false;
 }
-
-void
-pfr_frontend_boot(void)
-{
-  SetDefaultFontsPointer();
-  gMain.vblankCounter1 = 0;
-  gMain.vblankCounter2 = 0;
-  gMain.callback1 = NULL;
-  gMain.callback2 = CB2_InitTitleScreen;
-  gMain.state = 0;
-  gPfrRuntimeState.title_visible = true;
-  gPfrRuntimeState.main_menu_visible = false;
-}

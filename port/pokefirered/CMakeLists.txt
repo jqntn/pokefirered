@@ -95,22 +95,22 @@ endif()
 
 target_link_libraries(pfr_core PUBLIC raylib)
 
-add_executable(pfr_assettool tools/frontend_asset_tool.c)
-target_link_libraries(pfr_assettool PRIVATE raylib)
+add_executable(pfr_native_assettool tools/native_asset_tool.c)
+target_link_libraries(pfr_native_assettool PRIVATE raylib)
 
 if(MSVC)
-  target_compile_definitions(pfr_assettool PRIVATE _CRT_SECURE_NO_WARNINGS)
-  target_compile_options(pfr_assettool PRIVATE /W4 /WX)
+  target_compile_definitions(pfr_native_assettool PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(pfr_native_assettool PRIVATE /W4 /WX)
 else()
-  target_compile_options(pfr_assettool PRIVATE -Wall -Wextra -Werror)
+  target_compile_options(pfr_native_assettool PRIVATE -Wall -Wextra -Werror)
 endif()
 
-function(pfr_generate_frontend_asset out_var relative_output mode input_file)
+function(pfr_generate_native_asset out_var relative_output mode input_file)
   set(output_file "${PFR_ASSET_ROOT}/${relative_output}")
   get_filename_component(output_dir "${output_file}" DIRECTORY)
 
   set(command_args "${mode}" "${input_file}" "${output_file}")
-  set(depends pfr_assettool "${input_file}")
+  set(depends pfr_native_assettool "${input_file}")
 
   if(ARGC GREATER 4)
     list(APPEND command_args "${ARGV4}")
@@ -120,7 +120,7 @@ function(pfr_generate_frontend_asset out_var relative_output mode input_file)
   add_custom_command(
     OUTPUT "${output_file}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
-    COMMAND $<TARGET_FILE:pfr_assettool> ${command_args}
+    COMMAND $<TARGET_FILE:pfr_native_assettool> ${command_args}
     DEPENDS ${depends})
   set(${out_var} "${output_file}" PARENT_SCOPE)
 endfunction()
@@ -148,7 +148,7 @@ function(pfr_add_preprocessed_c out_var source_file output_name working_director
 endfunction()
 
 function(pfr_generate_gbapal out_var relative_output palette_source)
-  pfr_generate_frontend_asset(
+  pfr_generate_native_asset(
     ${out_var}
     "${relative_output}"
     gbapal
@@ -158,13 +158,13 @@ endfunction()
 
 function(pfr_generate_tile4_lz out_var relative_stem png_source palette_source)
   set(raw_var "${out_var}_RAW")
-  pfr_generate_frontend_asset(
+  pfr_generate_native_asset(
     ${raw_var}
     "${relative_stem}.4bpp"
     tile4
     "${png_source}"
     "${palette_source}")
-  pfr_generate_frontend_asset(
+  pfr_generate_native_asset(
     ${out_var}
     "${relative_stem}.4bpp.lz"
     lz
@@ -173,7 +173,7 @@ function(pfr_generate_tile4_lz out_var relative_stem png_source palette_source)
 endfunction()
 
 function(pfr_generate_bin_lz out_var relative_output input_file)
-  pfr_generate_frontend_asset(
+  pfr_generate_native_asset(
     ${out_var}
     "${relative_output}"
     lz
@@ -181,308 +181,308 @@ function(pfr_generate_bin_lz out_var relative_output input_file)
   set(${out_var} "${${out_var}}" PARENT_SCOPE)
 endfunction()
 
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BORDER_BG_RAW
   "graphics/title_screen/border_bg.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/border_bg.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/background.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BORDER_BG
   "graphics/title_screen/border_bg.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_BORDER_BG_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_COPYRIGHT_TILES_RAW
   "graphics/title_screen/copyright_press_start.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/copyright_press_start.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/background.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_COPYRIGHT_TILES
   "graphics/title_screen/copyright_press_start.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_COPYRIGHT_TILES_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_COPYRIGHT_MAP
   "graphics/title_screen/copyright_press_start.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/copyright_press_start.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_UNUSED_1
   "graphics/title_screen/unused1.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/unused1.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_UNUSED_2
   "graphics/title_screen/unused2.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/unused2.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_UNUSED_3
   "graphics/title_screen/unused3.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/unused3.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_UNUSED_4
   "graphics/title_screen/unused4.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/unused4.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_UNUSED_5
   "graphics/title_screen/unused5.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/unused5.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_UNUSED_6
   "graphics/title_screen/unused6.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/unused6.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_SLASH_RAW
   "graphics/title_screen/slash.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/slash.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/slash.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_SLASH
   "graphics/title_screen/slash.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_SLASH_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BLANK_SPRITE_RAW
   "graphics/title_screen/blank_sprite.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/blank_sprite.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/slash.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BLANK_SPRITE
   "graphics/title_screen/blank_sprite.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_BLANK_SPRITE_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LOGO_PAL
   "graphics/title_screen/firered/game_title_logo.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/game_title_logo.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LOGO_TILES_RAW
   "graphics/title_screen/firered/game_title_logo.8bpp"
   tile8
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/game_title_logo.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/game_title_logo.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LOGO_TILES
   "graphics/title_screen/firered/game_title_logo.8bpp.lz"
   lz
   "${PFR_ASSET_TITLE_LOGO_TILES_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LOGO_MAP
   "graphics/title_screen/firered/game_title_logo.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/game_title_logo.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BOX_ART_PAL
   "graphics/title_screen/firered/box_art_mon.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/box_art_mon.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BOX_ART_TILES_RAW
   "graphics/title_screen/firered/box_art_mon.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/box_art_mon.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/box_art_mon.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BOX_ART_TILES
   "graphics/title_screen/firered/box_art_mon.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_BOX_ART_TILES_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BOX_ART_MAP
   "graphics/title_screen/firered/box_art_mon.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/box_art_mon.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BACKGROUND_PAL
   "graphics/title_screen/firered/background.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/background.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BORDER_BG_MAP
   "graphics/title_screen/firered/border_bg.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/border_bg.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_FLAMES_PAL
   "graphics/title_screen/firered/flames.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/flames.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_FLAMES_RAW
   "graphics/title_screen/firered/flames.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/flames.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/flames.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_FLAMES
   "graphics/title_screen/firered/flames.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_FLAMES_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BLANK_FLAMES_RAW
   "graphics/title_screen/firered/blank_flames.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/blank_flames.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/flames.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_BLANK_FLAMES
   "graphics/title_screen/firered/blank_flames.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_BLANK_FLAMES_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_SLASH_PAL
   "graphics/title_screen/firered/slash.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/firered/slash.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_LOGO_PAL
   "graphics/title_screen/leafgreen/game_title_logo.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/game_title_logo.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_LOGO_TILES_RAW
   "graphics/title_screen/leafgreen/game_title_logo.8bpp"
   tile8
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/game_title_logo.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/game_title_logo.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_LOGO_TILES
   "graphics/title_screen/leafgreen/game_title_logo.8bpp.lz"
   lz
   "${PFR_ASSET_TITLE_LG_LOGO_TILES_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_LOGO_MAP
   "graphics/title_screen/leafgreen/game_title_logo.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/game_title_logo.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_BOX_ART_PAL
   "graphics/title_screen/leafgreen/box_art_mon.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/box_art_mon.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_BOX_ART_TILES_RAW
   "graphics/title_screen/leafgreen/box_art_mon.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/box_art_mon.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/box_art_mon.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_BOX_ART_TILES
   "graphics/title_screen/leafgreen/box_art_mon.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_LG_BOX_ART_TILES_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_BOX_ART_MAP
   "graphics/title_screen/leafgreen/box_art_mon.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/box_art_mon.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_BACKGROUND_PAL
   "graphics/title_screen/leafgreen/background.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/background.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_SLASH_PAL
   "graphics/title_screen/leafgreen/slash.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/slash.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LG_BORDER_BG_MAP
   "graphics/title_screen/leafgreen/border_bg.bin.lz"
   lz
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/border_bg.bin")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LEAVES_PAL
   "graphics/title_screen/leafgreen/leaves.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/leaves.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LEAVES_RAW
   "graphics/title_screen/leafgreen/leaves.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/leaves.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/leaves.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_LEAVES
   "graphics/title_screen/leafgreen/leaves.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_LEAVES_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_STREAK_RAW
   "graphics/title_screen/leafgreen/streak.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/streak.png"
   "${PFR_REPO_ROOT}/graphics/title_screen/leafgreen/leaves.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TITLE_STREAK
   "graphics/title_screen/leafgreen/streak.4bpp.lz"
   lz
   "${PFR_ASSET_TITLE_STREAK_RAW}")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_MAIN_MENU_BG_PAL
   "graphics/main_menu/bg.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/main_menu/bg.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_MAIN_MENU_TEXTBOX_PAL
   "graphics/main_menu/textbox.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/main_menu/textbox.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TEXT_WINDOW_STD
   "graphics/text_window/std.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/text_window/std.png"
   "${PFR_REPO_ROOT}/graphics/text_window/stdpal_3.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TEXTPAL_0
   "graphics/text_window/stdpal_0.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/text_window/stdpal_0.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TEXTPAL_1
   "graphics/text_window/stdpal_1.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/text_window/stdpal_1.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TEXTPAL_2
   "graphics/text_window/stdpal_2.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/text_window/stdpal_2.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TEXTPAL_3
   "graphics/text_window/stdpal_3.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/text_window/stdpal_3.pal")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_TEXTPAL_4
   "graphics/text_window/stdpal_4.gbapal"
   gbapal
   "${PFR_REPO_ROOT}/graphics/text_window/stdpal_4.pal")
 
 foreach(frame RANGE 1 10)
-  pfr_generate_frontend_asset(
+  pfr_generate_native_asset(
     PFR_ASSET_USER_FRAME_${frame}_TILES
     "graphics/text_window/type${frame}.4bpp"
     tile4
     "${PFR_REPO_ROOT}/graphics/text_window/type${frame}.png"
     "${PFR_REPO_ROOT}/graphics/text_window/type${frame}.png")
-  pfr_generate_frontend_asset(
+  pfr_generate_native_asset(
     PFR_ASSET_USER_FRAME_${frame}_PAL
     "graphics/text_window/type${frame}.gbapal"
     gbapal
     "${PFR_REPO_ROOT}/graphics/text_window/type${frame}.png")
-  list(APPEND PFR_FRONTEND_ASSET_FILES
+  list(APPEND PFR_NATIVE_ASSET_FILES
        "${PFR_ASSET_USER_FRAME_${frame}_TILES}"
        "${PFR_ASSET_USER_FRAME_${frame}_PAL}")
 endforeach()
@@ -762,7 +762,7 @@ list(APPEND PFR_INTRO_ASSET_FILES
      "${PFR_ASSET_INTRO_SCENE3_SWIPE_GFX}"
      "${PFR_ASSET_INTRO_SCENE3_RECOIL_DUST_GFX}")
 
-list(APPEND PFR_FRONTEND_ASSET_FILES
+list(APPEND PFR_NATIVE_ASSET_FILES
      "${PFR_ASSET_TITLE_BORDER_BG}"
      "${PFR_ASSET_TITLE_COPYRIGHT_TILES}"
      "${PFR_ASSET_TITLE_COPYRIGHT_MAP}"
@@ -807,76 +807,76 @@ list(APPEND PFR_FRONTEND_ASSET_FILES
      "${PFR_ASSET_TEXTPAL_3}"
      "${PFR_ASSET_TEXTPAL_4}")
 
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_DOWN_ARROWS
   "graphics/fonts/down_arrows.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/fonts/down_arrows.png"
   "${PFR_REPO_ROOT}/graphics/fonts/down_arrows.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_DOWN_ARROW_3
   "graphics/fonts/down_arrow_3.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/fonts/down_arrow_3.png"
   "${PFR_REPO_ROOT}/graphics/fonts/down_arrow_3.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_DOWN_ARROW_4
   "graphics/fonts/down_arrow_4.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/fonts/down_arrow_4.png"
   "${PFR_REPO_ROOT}/graphics/fonts/down_arrow_4.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_KEYPAD_ICONS
   "graphics/fonts/keypad_icons.4bpp"
   tile4
   "${PFR_REPO_ROOT}/graphics/fonts/keypad_icons.png"
   "${PFR_REPO_ROOT}/graphics/fonts/keypad_icons.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_LATIN_SMALL
   "graphics/fonts/latin_small.latfont"
   latfont
   "${PFR_REPO_ROOT}/graphics/fonts/latin_small.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_JAPANESE_SMALL
   "graphics/fonts/japanese_small.fwjpnfont"
   fwjpnfont
   "${PFR_REPO_ROOT}/graphics/fonts/japanese_small.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_LATIN_NORMAL
   "graphics/fonts/latin_normal.latfont"
   latfont
   "${PFR_REPO_ROOT}/graphics/fonts/latin_normal.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_JAPANESE_TALL
   "graphics/fonts/japanese_tall.fwjpnfont"
   fwjpnfont
   "${PFR_REPO_ROOT}/graphics/fonts/japanese_tall.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_JAPANESE_NORMAL
   "graphics/fonts/japanese_normal.fwjpnfont"
   fwjpnfont
   "${PFR_REPO_ROOT}/graphics/fonts/japanese_normal.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_LATIN_MALE
   "graphics/fonts/latin_male.latfont"
   latfont
   "${PFR_REPO_ROOT}/graphics/fonts/latin_male.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_JAPANESE_MALE
   "graphics/fonts/japanese_male.fwjpnfont"
   fwjpnfont
   "${PFR_REPO_ROOT}/graphics/fonts/japanese_male.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_LATIN_FEMALE
   "graphics/fonts/latin_female.latfont"
   latfont
   "${PFR_REPO_ROOT}/graphics/fonts/latin_female.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_JAPANESE_FEMALE
   "graphics/fonts/japanese_female.fwjpnfont"
   fwjpnfont
   "${PFR_REPO_ROOT}/graphics/fonts/japanese_female.png")
-pfr_generate_frontend_asset(
+pfr_generate_native_asset(
   PFR_ASSET_FONT_JAPANESE_BOLD
   "graphics/fonts/japanese_bold.fwjpnfont"
   fwjpnfont
@@ -914,13 +914,13 @@ pfr_add_preprocessed_c(
   "${CMAKE_CURRENT_SOURCE_DIR}/src/text_window_assets.c"
   "text_window_assets.native.c"
   "${PFR_ASSET_ROOT}"
-  ${PFR_FRONTEND_ASSET_FILES})
+  ${PFR_NATIVE_ASSET_FILES})
 pfr_add_preprocessed_c(
-  PFR_GENERATED_FRONTEND_ASSETS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/frontend_assets.c"
-  "frontend_assets.native.c"
+  PFR_GENERATED_NATIVE_ASSETS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/native_assets.c"
+  "native_assets.native.c"
   "${PFR_ASSET_ROOT}"
-  ${PFR_FRONTEND_ASSET_FILES})
+  ${PFR_NATIVE_ASSET_FILES})
 pfr_add_preprocessed_c(
   PFR_GENERATED_INTRO
   "${PFR_REPO_ROOT}/src/intro.c"
@@ -932,13 +932,13 @@ pfr_add_preprocessed_c(
   "${PFR_REPO_ROOT}/src/title_screen.c"
   "title_screen.native.c"
   "${PFR_ASSET_ROOT}"
-  ${PFR_FRONTEND_ASSET_FILES})
+  ${PFR_NATIVE_ASSET_FILES})
 pfr_add_preprocessed_c(
   PFR_GENERATED_MAIN_MENU
   "${PFR_REPO_ROOT}/src/main_menu.c"
   "main_menu.native.c"
   "${PFR_ASSET_ROOT}"
-  ${PFR_FRONTEND_ASSET_FILES})
+  ${PFR_NATIVE_ASSET_FILES})
 
 set(PFR_GENERATED_TEXT_PRINTER "${PFR_GENERATED_DIR}/text_printer.native.c")
 add_custom_command(
@@ -977,7 +977,7 @@ set(PFR_GAME_SOURCES
     ../../src/decompress.c
     ../../src/text_window.c
     ${PFR_GENERATED_TEXT_WINDOW_GRAPHICS}
-    ${PFR_GENERATED_FRONTEND_ASSETS}
+    ${PFR_GENERATED_NATIVE_ASSETS}
     ${PFR_GENERATED_TITLE_SCREEN}
     ${PFR_GENERATED_MAIN_MENU})
 
@@ -1046,11 +1046,14 @@ add_test(
           -DPFR_ASSET_ROOT=${PFR_ASSET_ROOT}
           -P
           "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_title_flames_palette.cmake")
-add_test(NAME pfr_headless_boot COMMAND pokefirered --headless --frames 1600 --quit-on-title)
+add_test(
+  NAME pfr_headless_boot
+  COMMAND pokefirered --mode game --headless --frames 1600 --quit-on-title)
 add_test(
   NAME pfr_headless_main_menu
-  COMMAND pokefirered --headless --frames 2300 --auto-press-start-frame 1860 --auto-press-start-frame 1880 --auto-press-start-frame 1900 --quit-on-main-menu)
-add_test(NAME pfr_headless_demo COMMAND pokefirered --demo --headless --frames 3 --quit-on-title)
+  COMMAND pokefirered --mode game --headless --frames 2300 --auto-press-start-frame 1860 --auto-press-start-frame 1880 --auto-press-start-frame 1900 --quit-on-main-menu)
+add_test(NAME pfr_headless_demo COMMAND pokefirered --mode demo --headless --frames 3)
+add_test(NAME pfr_headless_sandbox COMMAND pokefirered --mode sandbox --headless --frames 3)
 
 add_executable(pfr_integration tests/integration.c)
 target_include_directories(pfr_integration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -1083,6 +1086,8 @@ add_test(NAME pfr_integration COMMAND pfr_integration)
 add_test(
   NAME pfr_startup_capture
   COMMAND pfr_title_capture
+          --mode
+          game
           --output-dir
           ${PFR_STARTUP_CAPTURE_OUTPUT_DIR}
           --manifest-out

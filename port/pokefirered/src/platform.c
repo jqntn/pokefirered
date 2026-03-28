@@ -20,8 +20,7 @@ typedef struct PfrOptions
   uint32_t auto_press_start_frames[PFR_MAX_AUTO_START_FRAMES];
   uint32_t auto_press_start_frame_count;
   const char* save_path;
-  bool boot_demo;
-  bool boot_sandbox;
+  PfrMode mode;
 } PfrOptions;
 
 static const float sPfrMasterVolume = 0.0f;
@@ -40,6 +39,37 @@ pfr_parse_u32(const char* text, uint32_t* value)
   return true;
 }
 
+static void
+pfr_print_usage(const char* program_name)
+{
+  fprintf(stderr,
+          "usage: %s [--mode game|demo|sandbox] [--headless]\n"
+          "       [--frames N] [--quit-on-title] [--quit-on-main-menu]\n"
+          "       [--auto-press-start-frame N]... [--save-path PATH]\n",
+          program_name);
+}
+
+static bool
+pfr_parse_mode(const char* text, PfrMode* mode)
+{
+  if (strcmp(text, "game") == 0) {
+    *mode = PFR_MODE_GAME;
+    return true;
+  }
+
+  if (strcmp(text, "demo") == 0) {
+    *mode = PFR_MODE_DEMO;
+    return true;
+  }
+
+  if (strcmp(text, "sandbox") == 0) {
+    *mode = PFR_MODE_SANDBOX;
+    return true;
+  }
+
+  return false;
+}
+
 static bool
 pfr_parse_options(int argc, char** argv, PfrOptions* options)
 {
@@ -51,12 +81,16 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
   options->frame_limit = 0;
   options->auto_press_start_frame_count = 0;
   options->save_path = NULL;
-  options->boot_demo = false;
-  options->boot_sandbox = false;
+  options->mode = PFR_MODE_GAME;
 
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--headless") == 0) {
       options->headless = true;
+    } else if (strcmp(argv[i], "--mode") == 0) {
+      if (i + 1 >= argc || !pfr_parse_mode(argv[++i], &options->mode)) {
+        fprintf(stderr, "invalid --mode value\n");
+        return false;
+      }
     } else if (strcmp(argv[i], "--quit-on-title") == 0) {
       options->quit_on_title = true;
     } else if (strcmp(argv[i], "--quit-on-main-menu") == 0) {
@@ -89,10 +123,9 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
       }
 
       options->save_path = argv[++i];
-    } else if (strcmp(argv[i], "--demo") == 0) {
-      options->boot_demo = true;
-    } else if (strcmp(argv[i], "--sandbox") == 0) {
-      options->boot_sandbox = true;
+    } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+      pfr_print_usage(argv[0]);
+      exit(EXIT_SUCCESS);
     } else {
       fprintf(stderr, "unknown argument: %s\n", argv[i]);
       return false;
@@ -411,16 +444,11 @@ pfr_platform_main(int argc, char** argv)
   int result;
 
   if (!pfr_parse_options(argc, argv, &options)) {
+    pfr_print_usage(argv[0]);
     return 2;
   }
 
-  if (options.boot_demo) {
-    pfr_core_init(options.save_path, PFR_BOOT_DEMO);
-  } else if (options.boot_sandbox) {
-    pfr_core_init(options.save_path, PFR_BOOT_SANDBOX);
-  } else {
-    pfr_core_init(options.save_path, PFR_BOOT_NORMAL);
-  }
+  pfr_core_init(options.save_path, options.mode);
 
   if (options.headless) {
     result = pfr_run_headless(&options);

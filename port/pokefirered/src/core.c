@@ -129,7 +129,7 @@ pfr_core_simulate_scanlines(void)
 }
 
 void
-pfr_core_init(const char* save_path, PfrBootMode boot_mode)
+pfr_core_init(const char* save_path, PfrMode mode)
 {
   memset(&gPfrRuntimeState, 0, sizeof(gPfrRuntimeState));
   pfr_core_reset_memory();
@@ -155,11 +155,9 @@ pfr_core_init(const char* save_path, PfrBootMode boot_mode)
   ClearDma3Requests();
   pfr_renderer_init();
 
-  if (boot_mode == PFR_BOOT_DEMO) {
+  if (mode == PFR_MODE_DEMO) {
     pfr_demo_boot();
-  } else if (boot_mode == PFR_BOOT_FRONTEND) {
-    pfr_frontend_boot();
-  } else if (boot_mode == PFR_BOOT_SANDBOX) {
+  } else if (mode == PFR_MODE_SANDBOX) {
     pfr_sandbox_boot();
   } else {
     pfr_game_boot();

@@ -43,7 +43,7 @@ typedef struct PfrCaptureList
 
 typedef struct PfrOptions
 {
-  PfrBootMode boot_mode;
+  PfrMode mode;
   const char* output_dir;
   const char* manifest_out;
   const char* save_path;
@@ -454,7 +454,7 @@ static void
 pfr_print_usage(const char* program_name)
 {
   fprintf(stderr,
-          "usage: %s --output-dir DIR [--boot normal|frontend|demo]\n"
+          "usage: %s --output-dir DIR [--mode game|demo|sandbox]\n"
           "       [--frame N]... [--frame-manifest PATH]\n"
           "       [--auto-press-start-frame N]... [--manifest-out PATH]\n"
           "       [--save-path PATH]\n"
@@ -462,22 +462,22 @@ pfr_print_usage(const char* program_name)
           program_name);
 }
 
-static PfrBootMode
-pfr_parse_boot_mode(const char* value)
+static PfrMode
+pfr_parse_mode(const char* value)
 {
-  if (strcmp(value, "normal") == 0) {
-    return PFR_BOOT_NORMAL;
-  }
-
-  if (strcmp(value, "frontend") == 0) {
-    return PFR_BOOT_FRONTEND;
+  if (strcmp(value, "game") == 0) {
+    return PFR_MODE_GAME;
   }
 
   if (strcmp(value, "demo") == 0) {
-    return PFR_BOOT_DEMO;
+    return PFR_MODE_DEMO;
   }
 
-  fprintf(stderr, "invalid --boot value: %s\n", value);
+  if (strcmp(value, "sandbox") == 0) {
+    return PFR_MODE_SANDBOX;
+  }
+
+  fprintf(stderr, "invalid --mode value: %s\n", value);
   exit(EXIT_FAILURE);
 }
 
@@ -487,16 +487,16 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
   int i;
 
   memset(options, 0, sizeof(*options));
-  options->boot_mode = PFR_BOOT_NORMAL;
+  options->mode = PFR_MODE_GAME;
 
   for (i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--boot") == 0) {
+    if (strcmp(argv[i], "--mode") == 0) {
       if (i + 1 >= argc) {
-        fprintf(stderr, "missing --boot value\n");
+        fprintf(stderr, "missing --mode value\n");
         exit(EXIT_FAILURE);
       }
 
-      options->boot_mode = pfr_parse_boot_mode(argv[++i]);
+      options->mode = pfr_parse_mode(argv[++i]);
     } else if (strcmp(argv[i], "--output-dir") == 0) {
       if (i + 1 >= argc) {
         fprintf(stderr, "missing --output-dir value\n");
@@ -603,7 +603,7 @@ pfr_run_capture(const PfrOptions* options, const char* manifest_out)
     return EXIT_FAILURE;
   }
 
-  pfr_core_init(save_path, options->boot_mode);
+  pfr_core_init(save_path, options->mode);
 
   for (frame_index = 0; frame_index <= max_frame; frame_index++) {
     pfr_core_set_keys(pfr_keys_for_frame(options, frame_index));
