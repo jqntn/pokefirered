@@ -217,6 +217,25 @@ pfr_apply_bg_mosaic(int* screen_x, int* screen_y, u16 bgcnt, u16 mosaic)
   *screen_y -= *screen_y % v_size;
 }
 
+static void
+pfr_apply_obj_mosaic(int* screen_x,
+                     int* screen_y,
+                     const struct OamData* entry,
+                     u16 mosaic)
+{
+  int h_size;
+  int v_size;
+
+  if (!entry->mosaic) {
+    return;
+  }
+
+  h_size = ((mosaic >> 8) & 0x000F) + 1;
+  v_size = ((mosaic >> 12) & 0x000F) + 1;
+  *screen_x -= *screen_x % h_size;
+  *screen_y -= *screen_y % v_size;
+}
+
 static bool
 pfr_coord_in_window_range(int coord, int limit, u16 range)
 {
@@ -622,6 +641,7 @@ pfr_sample_sprite_texel(const struct OamData* entry,
                         const struct OamData* oam,
                         const u16* palette,
                         bool one_d_mapping,
+                        u16 mosaic,
                         int screen_x,
                         int screen_y,
                         u16* out_color)
@@ -665,6 +685,7 @@ pfr_sample_sprite_texel(const struct OamData* entry,
     return false;
   }
 
+  pfr_apply_obj_mosaic(&screen_x, &screen_y, entry, mosaic);
   local_x = screen_x - origin_x;
   local_y = screen_y - origin_y;
 
@@ -749,14 +770,16 @@ pfr_sample_sprite_texel(const struct OamData* entry,
 }
 
 static bool
-pfr_pixel_in_obj_window(int screen_x, int screen_y, u16 dispcnt)
+pfr_pixel_in_obj_window(int screen_x,
+                        int screen_y,
+                        const PfrLineRegs* line_regs)
 {
   const struct OamData* oam = (const struct OamData*)gPfrOam;
-  bool one_d_mapping = (dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
+  bool one_d_mapping = (line_regs->dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
   u8 sprite_count;
   u8 sprite_order;
 
-  if ((dispcnt & (DISPCNT_OBJ_ON | DISPCNT_OBJWIN_ON)) !=
+  if ((line_regs->dispcnt & (DISPCNT_OBJ_ON | DISPCNT_OBJWIN_ON)) !=
       (DISPCNT_OBJ_ON | DISPCNT_OBJWIN_ON)) {
     return false;
   }
@@ -774,6 +797,7 @@ pfr_pixel_in_obj_window(int screen_x, int screen_y, u16 dispcnt)
                                 oam,
                                 (const u16*)gPfrPltt,
                                 one_d_mapping,
+                                line_regs->mosaic,
                                 screen_x,
                                 screen_y,
                                 NULL)) {
@@ -811,7 +835,7 @@ pfr_window_state_for_pixel(int screen_x,
                screen_y, DISPLAY_HEIGHT, line_regs->win1v)) {
     control = (line_regs->winin >> 8) & 0x3FU;
   } else if ((dispcnt & DISPCNT_OBJWIN_ON) != 0 &&
-             pfr_pixel_in_obj_window(screen_x, screen_y, dispcnt)) {
+             pfr_pixel_in_obj_window(screen_x, screen_y, line_regs)) {
     control = (line_regs->winout >> 8) & 0x3FU;
   } else {
     control = line_regs->winout & 0x3FU;
@@ -863,11 +887,11 @@ static PfrPixelSample
 pfr_sample_sprite_pixel(int screen_x,
                         int screen_y,
                         u8 visible_layers,
-                        u16 dispcnt)
+                        const PfrLineRegs* line_regs)
 {
   const struct OamData* oam = (const struct OamData*)gPfrOam;
   const u16* palette = (const u16*)gPfrPltt;
-  bool one_d_mapping = (dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
+  bool one_d_mapping = (line_regs->dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
   u8 sprite_count;
   u8 sprite_order;
   PfrPixelSample best = {
@@ -878,7 +902,7 @@ pfr_sample_sprite_pixel(int screen_x,
     .layer = 0,
   };
 
-  if ((dispcnt & DISPCNT_OBJ_ON) == 0 ||
+  if ((line_regs->dispcnt & DISPCNT_OBJ_ON) == 0 ||
       (visible_layers & PFR_LAYER_OBJ) == 0) {
     return best;
   }
@@ -898,6 +922,7 @@ pfr_sample_sprite_pixel(int screen_x,
                                  oam,
                                  palette,
                                  one_d_mapping,
+                                 line_regs->mosaic,
                                  screen_x,
                                  screen_y,
                                  &sample.color)) {
@@ -1048,8 +1073,8 @@ pfr_renderer_render_frame(void)
       PfrWindowState window_state = pfr_window_state_for_pixel(x, y, line_regs);
       PfrPixelSample bg_top;
       PfrPixelSample bg_second;
-      PfrPixelSample obj_sample = pfr_sample_sprite_pixel(
-        x, y, window_state.visible_layers, line_regs->dispcnt);
+      PfrPixelSample obj_sample =
+        pfr_sample_sprite_pixel(x, y, window_state.visible_layers, line_regs);
       PfrPixelSample top = { 0 };
       PfrPixelSample second = { 0 };
       PfrPixelSample backdrop = {

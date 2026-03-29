@@ -281,6 +281,60 @@ test_renderer_respects_obj_disable(void)
 }
 
 static void
+test_renderer_applies_obj_mosaic(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_block0;
+  uint32_t expected_block1;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[0x100 + 1] = 0x001F;
+  ((u16*)gPfrPltt)[0x100 + 2] = 0x03E0;
+  ((u16*)gPfrPltt)[0x100 + 3] = 0x7C00;
+  ((u16*)gPfrPltt)[0x100 + 4] = 0x03FF;
+  gPfrVram[0x10000 + 0] = 0x21;
+  gPfrVram[0x10000 + 1] = 0x43;
+  gPfrVram[0x10000 + 4] = 0x43;
+  gPfrVram[0x10000 + 5] = 0x21;
+
+  oam[0].affineMode = ST_OAM_AFFINE_OFF;
+  oam[0].objMode = ST_OAM_OBJ_NORMAL;
+  oam[0].mosaic = TRUE;
+  oam[0].bpp = ST_OAM_4BPP;
+  oam[0].shape = ST_OAM_SQUARE;
+  oam[0].x = 0;
+  oam[0].y = 0;
+  oam[0].size = ST_OAM_SIZE_0;
+  oam[0].tileNum = 0;
+  oam[0].priority = 0;
+  oam[0].paletteNum = 0;
+
+  pfr_renderer_init();
+
+  REG_MOSAIC = 0x1100;
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_block0 = test_rgb555_to_rgba8888(0x001F);
+  expected_block1 = test_rgb555_to_rgba8888(0x7C00);
+  assert(framebuffer[0] == expected_block0);
+  assert(framebuffer[1] == expected_block0);
+  assert(framebuffer[DISPLAY_WIDTH] == expected_block0);
+  assert(framebuffer[DISPLAY_WIDTH + 1] == expected_block0);
+  assert(framebuffer[2] == expected_block1);
+  assert(framebuffer[3] == expected_block1);
+  assert(framebuffer[DISPLAY_WIDTH + 2] == expected_block1);
+  assert(framebuffer[DISPLAY_WIDTH + 3] == expected_block1);
+}
+
+static void
 test_renderer_skips_affine_erase_sprites(void)
 {
   struct OamData* oam = (struct OamData*)gPfrOam;
@@ -974,6 +1028,9 @@ main(void)
   fflush(stdout);
   test_renderer_respects_obj_disable();
   printf("pfr_smoke: test_renderer_respects_obj_disable ok\n");
+  fflush(stdout);
+  test_renderer_applies_obj_mosaic();
+  printf("pfr_smoke: test_renderer_applies_obj_mosaic ok\n");
   fflush(stdout);
   test_renderer_skips_affine_erase_sprites();
   printf("pfr_smoke: test_renderer_skips_affine_erase_sprites ok\n");
