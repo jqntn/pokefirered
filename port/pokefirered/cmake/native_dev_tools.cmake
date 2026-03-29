@@ -4,8 +4,12 @@ function(pfr_define_native_dev_tools)
     NAMES clang-format clang-format.exe
     HINTS
       "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/Llvm/x64/bin"
-      "C:/Program Files/Microsoft Visual Studio/17/Community/VC/Tools/Llvm/x64/bin"
-    REQUIRED)
+      "C:/Program Files/Microsoft Visual Studio/17/Community/VC/Tools/Llvm/x64/bin")
+
+  if(NOT PFR_CLANG_FORMAT)
+    message(STATUS "clang-format not found; skipping format-native target")
+    return()
+  endif()
 
   file(
     GLOB_RECURSE PFR_FORMAT_FILES CONFIGURE_DEPENDS

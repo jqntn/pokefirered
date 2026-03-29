@@ -258,7 +258,13 @@ pfr_sample_text_bg(const PfrLineRegs* line_regs,
   int pixel_y;
   size_t tile_offset;
   uint8_t color_index;
-  PfrPixelSample sample = { false, (u8)(bgcnt & 3), (u8)bg_index, 0 };
+  PfrPixelSample sample = {
+    .opaque = false,
+    .priority = (u8)(bgcnt & 3),
+    .order = (u8)bg_index,
+    .color = 0,
+    .layer = 0,
+  };
 
   x = (screen_x + line_regs->bghofs[bg_index]) & (map_width_tiles * 8 - 1);
   y = (screen_y + line_regs->bgvofs[bg_index]) & (map_height_tiles * 8 - 1);
@@ -353,7 +359,13 @@ pfr_sample_affine_bg(const PfrLineRegs* line_regs,
   int tile_number;
   size_t tile_offset;
   uint8_t color_index;
-  PfrPixelSample sample = { false, (u8)(bgcnt & 3), (u8)bg_index, 0 };
+  PfrPixelSample sample = {
+    .opaque = false,
+    .priority = (u8)(bgcnt & 3),
+    .order = (u8)bg_index,
+    .color = 0,
+    .layer = 0,
+  };
 
   if (wrap != 0) {
     src_x %= map_size;
@@ -830,7 +842,13 @@ pfr_sample_sprite_pixel(int screen_x,
   bool one_d_mapping = (dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
   u8 sprite_count;
   u8 sprite_order;
-  PfrPixelSample best = { false, 4, 0xFF, 0 };
+  PfrPixelSample best = {
+    .opaque = false,
+    .priority = 4,
+    .order = 0xFF,
+    .color = 0,
+    .layer = 0,
+  };
 
   if ((dispcnt & DISPCNT_OBJ_ON) == 0 ||
       (visible_layers & PFR_LAYER_OBJ) == 0) {
