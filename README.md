@@ -2,6 +2,8 @@
 
 Platform abstraction layer for Pokémon FireRed that bridges decompiled game code to a native desktop runtime with hardware-accurate behavior.
 
+![Pokémon FireRed Desktop Port screenshot](readme-assets/pokefirered.png)
+
 ## What This Fork Is
 
 This fork builds a native desktop runtime around the decompiled FireRed codebase.
