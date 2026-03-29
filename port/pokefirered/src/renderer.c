@@ -12,6 +12,7 @@ typedef struct PfrPixelSample
   u8 order;
   u16 color;
   u8 layer;
+  bool semi_transparent;
 } PfrPixelSample;
 
 typedef struct PfrWindowState
@@ -859,7 +860,22 @@ pfr_apply_color_effect(PfrPixelSample top,
   u16 second_targets = (bldcnt >> 8) & 0x3FU;
   int effect = bldcnt & (3 << 6);
 
-  if (!color_effect_enabled || (top.layer & top_targets) == 0) {
+  if (!color_effect_enabled) {
+    return top.color;
+  }
+
+  if (top.semi_transparent) {
+    if (second.opaque && (second.layer & second_targets) != 0) {
+      u16 bldalpha = line_regs->bldalpha;
+      int eva = bldalpha & 0x1F;
+      int evb = (bldalpha >> 8) & 0x1F;
+      return pfr_blend_colors(top.color, second.color, eva, evb);
+    }
+
+    return top.color;
+  }
+
+  if ((top.layer & top_targets) == 0) {
     return top.color;
   }
 
@@ -900,6 +916,7 @@ pfr_sample_sprite_pixel(int screen_x,
     .order = 0xFF,
     .color = 0,
     .layer = 0,
+    .semi_transparent = false,
   };
 
   if ((line_regs->dispcnt & DISPCNT_OBJ_ON) == 0 ||
@@ -933,6 +950,7 @@ pfr_sample_sprite_pixel(int screen_x,
     sample.priority = (u8)entry->priority;
     sample.order = (u8)sprite_index;
     sample.layer = PFR_LAYER_OBJ;
+    sample.semi_transparent = entry->objMode == ST_OAM_OBJ_BLEND;
 
     if (!best.opaque || sample.priority < best.priority ||
         (sample.priority == best.priority && sample.order < best.order)) {
@@ -1078,7 +1096,12 @@ pfr_renderer_render_frame(void)
       PfrPixelSample top = { 0 };
       PfrPixelSample second = { 0 };
       PfrPixelSample backdrop = {
-        true, 4, 0xFF, ((const u16*)gPfrPltt)[0], PFR_LAYER_BD
+        .opaque = true,
+        .priority = 4,
+        .order = 0xFF,
+        .color = ((const u16*)gPfrPltt)[0],
+        .layer = PFR_LAYER_BD,
+        .semi_transparent = false,
       };
       u16 final_color;
 

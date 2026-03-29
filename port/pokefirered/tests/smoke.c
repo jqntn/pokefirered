@@ -56,6 +56,34 @@ test_rgb555_to_rgba8888(u16 color)
 }
 
 static u16
+test_blend_color(u16 lhs, u16 rhs, int eva, int evb)
+{
+  int lhs_r = lhs & 31;
+  int lhs_g = (lhs >> 5) & 31;
+  int lhs_b = (lhs >> 10) & 31;
+  int rhs_r = rhs & 31;
+  int rhs_g = (rhs >> 5) & 31;
+  int rhs_b = (rhs >> 10) & 31;
+  int out_r = (lhs_r * eva + rhs_r * evb) / 16;
+  int out_g = (lhs_g * eva + rhs_g * evb) / 16;
+  int out_b = (lhs_b * eva + rhs_b * evb) / 16;
+
+  if (out_r > 31) {
+    out_r = 31;
+  }
+
+  if (out_g > 31) {
+    out_g = 31;
+  }
+
+  if (out_b > 31) {
+    out_b = 31;
+  }
+
+  return (u16)(out_r | (out_g << 5) | (out_b << 10));
+}
+
+static u16
 test_lighten_color(u16 color, int coeff)
 {
   int r = color & 31;
@@ -332,6 +360,54 @@ test_renderer_applies_obj_mosaic(void)
   assert(framebuffer[3] == expected_block1);
   assert(framebuffer[DISPLAY_WIDTH + 2] == expected_block1);
   assert(framebuffer[DISPLAY_WIDTH + 3] == expected_block1);
+}
+
+static void
+test_renderer_blends_semi_transparent_obj_even_when_bldcnt_is_not_blend(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_blend;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[1] = 0x001F;
+  ((u16*)gPfrPltt)[0x100 + 1] = 0x7C00;
+  gPfrVram[0] = 0x11;
+  gPfrVram[4] = 0x11;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31) = 0;
+  gPfrVram[0x10000] = 0x11;
+
+  oam[0].affineMode = ST_OAM_AFFINE_OFF;
+  oam[0].objMode = ST_OAM_OBJ_BLEND;
+  oam[0].mosaic = FALSE;
+  oam[0].bpp = ST_OAM_4BPP;
+  oam[0].shape = ST_OAM_SQUARE;
+  oam[0].x = 0;
+  oam[0].y = 0;
+  oam[0].size = ST_OAM_SIZE_0;
+  oam[0].tileNum = 0;
+  oam[0].priority = 0;
+  oam[0].paletteNum = 0;
+
+  pfr_renderer_init();
+
+  REG_BG0CNT = BGCNT_SCREENBASE(31) | BGCNT_16COLOR | BGCNT_PRIORITY(1);
+  REG_BLDALPHA = 8 | (8 << 8);
+  REG_BLDCNT = BLDCNT_TGT2_BG0 | BLDCNT_EFFECT_LIGHTEN;
+  REG_DISPCNT =
+    DISPCNT_MODE_0 | DISPCNT_BG0_ON | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
+
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_blend =
+    test_rgb555_to_rgba8888(test_blend_color(0x7C00, 0x001F, 8, 8));
+  assert(framebuffer[0] == expected_blend);
 }
 
 static void
@@ -1031,6 +1107,11 @@ main(void)
   fflush(stdout);
   test_renderer_applies_obj_mosaic();
   printf("pfr_smoke: test_renderer_applies_obj_mosaic ok\n");
+  fflush(stdout);
+  test_renderer_blends_semi_transparent_obj_even_when_bldcnt_is_not_blend();
+  printf("pfr_smoke: "
+         "test_renderer_blends_semi_transparent_obj_even_when_bldcnt_is_not_"
+         "blend ok\n");
   fflush(stdout);
   test_renderer_skips_affine_erase_sprites();
   printf("pfr_smoke: test_renderer_skips_affine_erase_sprites ok\n");
