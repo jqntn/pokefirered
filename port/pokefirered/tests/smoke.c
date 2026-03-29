@@ -10,6 +10,7 @@
 #include "dma3.h"
 #include "gba/io_reg.h"
 #include "gba/syscall.h"
+#include "global.h"
 #include "gpu_regs.h"
 #include "main.h"
 #include "pfr/audio.h"
@@ -772,6 +773,14 @@ test_main_runtime(void)
   pfr_main_set_raw_keys(DPAD_UP | A_BUTTON);
   pfr_main_run_callbacks();
   assert(gMain.newKeys == 0);
+
+  gSaveBlock2Ptr->optionsButtonMode = OPTIONS_BUTTON_MODE_L_EQUALS_A;
+  pfr_main_set_raw_keys(L_BUTTON);
+  pfr_main_run_callbacks();
+  assert(gMain.heldKeysRaw == L_BUTTON);
+  assert(gMain.newKeysRaw == L_BUTTON);
+  assert(gMain.heldKeys == (L_BUTTON | A_BUTTON));
+  assert(gMain.newKeys == (L_BUTTON | A_BUTTON));
 
   pfr_main_shutdown();
 }

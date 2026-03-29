@@ -4,13 +4,13 @@
 #include <string.h>
 
 #include "dma3.h"
+#include "global.h"
 #include "gpu_regs.h"
 #include "main.h"
 #include "pfr/core.h"
 #include "pfr/dma.h"
 #include "pfr/main_runtime.h"
 
-#include "../../../include/constants/global.h"
 #include "main_menu.h"
 #include "title_screen.h"
 
@@ -63,6 +63,16 @@ pfr_main_read_keys(void)
 
   gMain.heldKeysRaw = keyInput;
   gMain.heldKeys = gMain.heldKeysRaw;
+
+  if (gSaveBlock2Ptr->optionsButtonMode == OPTIONS_BUTTON_MODE_L_EQUALS_A) {
+    if ((gMain.newKeysRaw & L_BUTTON) != 0) {
+      gMain.newKeys |= A_BUTTON;
+    }
+
+    if ((gMain.heldKeysRaw & L_BUTTON) != 0) {
+      gMain.heldKeys |= A_BUTTON;
+    }
+  }
 
   if ((gMain.newKeys & gMain.watchedKeysMask) != 0) {
     gMain.watchedKeysPressed = TRUE;
