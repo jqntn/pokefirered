@@ -363,6 +363,66 @@ test_renderer_applies_obj_mosaic(void)
 }
 
 static void
+test_renderer_anchors_obj_mosaic_to_sprite_origin(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  int row = 5;
+  int col = 10;
+  uint32_t expected_block0;
+  uint32_t expected_block1;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[0x100 + 1] = 0x001F;
+  ((u16*)gPfrPltt)[0x100 + 2] = 0x03E0;
+  ((u16*)gPfrPltt)[0x100 + 3] = 0x7C00;
+  ((u16*)gPfrPltt)[0x100 + 4] = 0x03FF;
+  ((u16*)gPfrPltt)[0x100 + 5] = 0x7FE0;
+  ((u16*)gPfrPltt)[0x100 + 6] = 0x4210;
+  ((u16*)gPfrPltt)[0x100 + 7] = 0x56B5;
+  ((u16*)gPfrPltt)[0x100 + 8] = 0x7FFF;
+  gPfrVram[0x10000 + 0] = 0x21;
+  gPfrVram[0x10000 + 1] = 0x43;
+  gPfrVram[0x10000 + 2] = 0x65;
+  gPfrVram[0x10000 + 3] = 0x87;
+
+  oam[0].affineMode = ST_OAM_AFFINE_OFF;
+  oam[0].objMode = ST_OAM_OBJ_NORMAL;
+  oam[0].mosaic = TRUE;
+  oam[0].bpp = ST_OAM_4BPP;
+  oam[0].shape = ST_OAM_SQUARE;
+  oam[0].x = col;
+  oam[0].y = row;
+  oam[0].size = ST_OAM_SIZE_0;
+  oam[0].tileNum = 0;
+  oam[0].priority = 0;
+  oam[0].paletteNum = 0;
+
+  pfr_renderer_init();
+
+  REG_MOSAIC = 0x0300;
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_block0 = test_rgb555_to_rgba8888(0x001F);
+  expected_block1 = test_rgb555_to_rgba8888(0x7FE0);
+  assert(framebuffer[row * DISPLAY_WIDTH + col + 0] == expected_block0);
+  assert(framebuffer[row * DISPLAY_WIDTH + col + 1] == expected_block0);
+  assert(framebuffer[row * DISPLAY_WIDTH + col + 2] == expected_block0);
+  assert(framebuffer[row * DISPLAY_WIDTH + col + 3] == expected_block0);
+  assert(framebuffer[row * DISPLAY_WIDTH + col + 4] == expected_block1);
+  assert(framebuffer[row * DISPLAY_WIDTH + col + 5] == expected_block1);
+  assert(framebuffer[row * DISPLAY_WIDTH + col + 6] == expected_block1);
+  assert(framebuffer[row * DISPLAY_WIDTH + col + 7] == expected_block1);
+}
+
+static void
 test_renderer_blends_semi_transparent_obj_even_when_bldcnt_is_not_blend(void)
 {
   struct OamData* oam = (struct OamData*)gPfrOam;
@@ -1160,6 +1220,9 @@ main(void)
   fflush(stdout);
   test_renderer_applies_obj_mosaic();
   printf("pfr_smoke: test_renderer_applies_obj_mosaic ok\n");
+  fflush(stdout);
+  test_renderer_anchors_obj_mosaic_to_sprite_origin();
+  printf("pfr_smoke: test_renderer_anchors_obj_mosaic_to_sprite_origin ok\n");
   fflush(stdout);
   test_renderer_blends_semi_transparent_obj_even_when_bldcnt_is_not_blend();
   printf("pfr_smoke: "

@@ -221,11 +221,15 @@ pfr_apply_bg_mosaic(int* screen_x, int* screen_y, u16 bgcnt, u16 mosaic)
 static void
 pfr_apply_obj_mosaic(int* screen_x,
                      int* screen_y,
+                     int origin_x,
+                     int origin_y,
                      const struct OamData* entry,
                      u16 mosaic)
 {
   int h_size;
   int v_size;
+  int local_x;
+  int local_y;
 
   if (!entry->mosaic) {
     return;
@@ -233,8 +237,10 @@ pfr_apply_obj_mosaic(int* screen_x,
 
   h_size = ((mosaic >> 8) & 0x000F) + 1;
   v_size = ((mosaic >> 12) & 0x000F) + 1;
-  *screen_x -= *screen_x % h_size;
-  *screen_y -= *screen_y % v_size;
+  local_x = *screen_x - origin_x;
+  local_y = *screen_y - origin_y;
+  *screen_x = origin_x + local_x - local_x % h_size;
+  *screen_y = origin_y + local_y - local_y % v_size;
 }
 
 static bool
@@ -686,7 +692,7 @@ pfr_sample_sprite_texel(const struct OamData* entry,
     return false;
   }
 
-  pfr_apply_obj_mosaic(&screen_x, &screen_y, entry, mosaic);
+  pfr_apply_obj_mosaic(&screen_x, &screen_y, origin_x, origin_y, entry, mosaic);
   local_x = screen_x - origin_x;
   local_y = screen_y - origin_y;
 
