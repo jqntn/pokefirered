@@ -1,8 +1,8 @@
-#include "gba/defines.h"
-#include "gba/io_reg.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "gba/defines.h"
+#include "gba/io_reg.h"
 
 #include <raylib.h>
 

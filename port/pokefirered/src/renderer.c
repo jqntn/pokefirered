@@ -725,7 +725,7 @@ pfr_sample_sprite_texel(const struct OamData* entry,
   if (one_d_mapping) {
     tile_num += (tile_y * (width / 8) + tile_x) * tile_stride;
   } else {
-    tile_num += (tile_y * 32 + tile_x) * tile_stride;
+    tile_num += tile_y * 32 + tile_x * tile_stride;
   }
 
   tile_offset = 0x10000U + (size_t)tile_num * 32U;

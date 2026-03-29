@@ -411,6 +411,59 @@ test_renderer_blends_semi_transparent_obj_even_when_bldcnt_is_not_blend(void)
 }
 
 static void
+test_renderer_uses_fixed_2d_8bpp_obj_row_stride(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_top_left;
+  uint32_t expected_top_right;
+  uint32_t expected_bottom_left;
+  uint32_t expected_bottom_right;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[0x100 + 1] = 0x001F;
+  ((u16*)gPfrPltt)[0x100 + 2] = 0x03E0;
+  ((u16*)gPfrPltt)[0x100 + 3] = 0x7C00;
+  ((u16*)gPfrPltt)[0x100 + 4] = 0x03FF;
+  memset(gPfrVram + 0x10000, 1, 64);
+  memset(gPfrVram + 0x10000 + 64, 2, 64);
+  memset(gPfrVram + 0x10000 + 32 * 32, 3, 64);
+  memset(gPfrVram + 0x10000 + 34 * 32, 4, 64);
+
+  oam[0].affineMode = ST_OAM_AFFINE_OFF;
+  oam[0].objMode = ST_OAM_OBJ_NORMAL;
+  oam[0].mosaic = FALSE;
+  oam[0].bpp = ST_OAM_8BPP;
+  oam[0].shape = ST_OAM_SQUARE;
+  oam[0].x = 0;
+  oam[0].y = 0;
+  oam[0].size = ST_OAM_SIZE_1;
+  oam[0].tileNum = 0;
+  oam[0].priority = 0;
+  oam[0].paletteNum = 0;
+
+  pfr_renderer_init();
+
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_OBJ_ON;
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_top_left = test_rgb555_to_rgba8888(0x001F);
+  expected_top_right = test_rgb555_to_rgba8888(0x03E0);
+  expected_bottom_left = test_rgb555_to_rgba8888(0x7C00);
+  expected_bottom_right = test_rgb555_to_rgba8888(0x03FF);
+  assert(framebuffer[0] == expected_top_left);
+  assert(framebuffer[8] == expected_top_right);
+  assert(framebuffer[8 * DISPLAY_WIDTH] == expected_bottom_left);
+  assert(framebuffer[8 * DISPLAY_WIDTH + 8] == expected_bottom_right);
+}
+
+static void
 test_renderer_skips_affine_erase_sprites(void)
 {
   struct OamData* oam = (struct OamData*)gPfrOam;
@@ -1112,6 +1165,9 @@ main(void)
   printf("pfr_smoke: "
          "test_renderer_blends_semi_transparent_obj_even_when_bldcnt_is_not_"
          "blend ok\n");
+  fflush(stdout);
+  test_renderer_uses_fixed_2d_8bpp_obj_row_stride();
+  printf("pfr_smoke: test_renderer_uses_fixed_2d_8bpp_obj_row_stride ok\n");
   fflush(stdout);
   test_renderer_skips_affine_erase_sprites();
   printf("pfr_smoke: test_renderer_skips_affine_erase_sprites ok\n");
