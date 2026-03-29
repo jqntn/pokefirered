@@ -43,8 +43,6 @@ function(pfr_define_native_runtime_targets)
     pfr_core
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
            ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
-  target_compile_definitions(
-    pfr_core PUBLIC $<$<BOOL:${POKEFIRERED_HEADLESS}>:PFR_DEFAULT_HEADLESS=1>)
   pfr_apply_native_warnings(pfr_core)
 
   if(NOT MSVC)

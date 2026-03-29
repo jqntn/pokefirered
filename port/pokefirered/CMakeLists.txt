@@ -12,9 +12,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "$<$<NOT:$<CONFIG:Debug>>:MultiThreaded>")
 
-option(POKEFIRERED_HEADLESS "Default the native executable to headless mode" OFF)
-option(POKEFIRERED_BUILD_ASSET_TOOLS "Build native helper tools from the repo" OFF)
-
 get_filename_component(PFR_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(PFR_CHARMAP "${PFR_REPO_ROOT}/charmap.txt")
 set(PFR_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
