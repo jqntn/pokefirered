@@ -14,25 +14,20 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "$<$<NOT:$<CONFIG:Debug>>:MultiThreaded>")
 
 option(POKEFIRERED_HEADLESS "Default the native executable to headless mode" OFF)
 option(POKEFIRERED_BUILD_ASSET_TOOLS "Build native helper tools from the repo" OFF)
-option(POKEFIRERED_USE_SYSTEM_RAYLIB "Use a preinstalled raylib package" OFF)
 
 get_filename_component(PFR_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(PFR_CHARMAP "${PFR_REPO_ROOT}/charmap.txt")
 set(PFR_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(PFR_ASSET_ROOT "${CMAKE_CURRENT_BINARY_DIR}/assetroot")
 
-if(POKEFIRERED_USE_SYSTEM_RAYLIB)
-  find_package(raylib CONFIG REQUIRED)
-else()
-  set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-  set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
-  FetchContent_Declare(
-    raylib
-    URL https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-    URL_HASH SHA256=AEA98ECF5BC5C5E0B789A76DE0083A21A70457050EA4CC2AEC7566935F5E258E)
-  FetchContent_MakeAvailable(raylib)
-endif()
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  raylib
+  URL https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  URL_HASH SHA256=AEA98ECF5BC5C5E0B789A76DE0083A21A70457050EA4CC2AEC7566935F5E258E)
+FetchContent_MakeAvailable(raylib)
 
 set(PFR_TEXT_ASSET_FILES)
 set(PFR_NATIVE_ASSET_FILES)
