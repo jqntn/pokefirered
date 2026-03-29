@@ -13,6 +13,9 @@
 #include "pfr/storage.h"
 #include "task.h"
 
+void
+MapMusicMain(void);
+
 typedef union PfrAlignedStorage
 {
   uint8_t bytes[PFR_VRAM_SIZE];
@@ -182,6 +185,7 @@ void
 pfr_core_run_frame(void)
 {
   pfr_main_run_callbacks();
+  MapMusicMain();
   gPfrRuntimeState.keys_held = gMain.heldKeys;
   gPfrRuntimeState.keys_pressed = gMain.newKeys;
   pfr_core_simulate_scanlines();

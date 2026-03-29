@@ -17,6 +17,8 @@ set(PFR_CHARMAP "${PFR_REPO_ROOT}/charmap.txt")
 set(PFR_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(PFR_ASSET_ROOT "${CMAKE_CURRENT_BINARY_DIR}/assetroot")
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(

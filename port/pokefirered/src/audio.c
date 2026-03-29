@@ -1,156 +1,227 @@
 #include "pfr/audio.h"
-#include "../../../include/constants/songs.h"
-#include "gba/io_reg.h"
-#include "pfr/stubs.h"
-#include <math.h>
 
-static double
-pfr_audio_square(double phase)
+#include <string.h>
+
+typedef struct PfrAudioQueue
 {
-  return phase < 3.14159265358979323846 ? 1.0 : -1.0;
+  int16_t frames[PFR_AUDIO_QUEUE_CAPACITY * PFR_AUDIO_CHANNEL_COUNT];
+  size_t read_index;
+  size_t frame_count;
+  uint64_t underrun_count;
+  uint64_t overrun_count;
+  uint32_t source_sample_rate;
+  double resample_position;
+} PfrAudioQueue;
+
+static PfrAudioQueue sPfrAudioQueue;
+
+static size_t
+pfr_audio_frame_offset(size_t index)
+{
+  return (index % PFR_AUDIO_QUEUE_CAPACITY) * PFR_AUDIO_CHANNEL_COUNT;
 }
 
-static double
-pfr_audio_title_frequency(uint32_t bgm_step, double ratio)
+static size_t
+pfr_audio_copy_frames(int16_t* output,
+                      size_t frame_count,
+                      size_t queue_index,
+                      size_t available_frames)
 {
-  static const double sTitlePattern[] = {
-    392.00, 523.25, 659.25, 783.99, 659.25, 523.25, 440.00, 329.63,
-  };
+  size_t frames_before_wrap =
+    PFR_AUDIO_QUEUE_CAPACITY - (queue_index % PFR_AUDIO_QUEUE_CAPACITY);
+  size_t first_copy = frame_count;
 
-  return sTitlePattern[bgm_step % PFR_ARRAY_COUNT(sTitlePattern)] * ratio;
+  if (first_copy > available_frames) {
+    first_copy = available_frames;
+  }
+
+  if (first_copy > frames_before_wrap) {
+    first_copy = frames_before_wrap;
+  }
+
+  memcpy(output,
+         &sPfrAudioQueue.frames[pfr_audio_frame_offset(queue_index)],
+         first_copy * PFR_AUDIO_CHANNEL_COUNT * sizeof(int16_t));
+
+  if (frame_count > first_copy) {
+    size_t remaining = frame_count - first_copy;
+
+    memcpy(output + first_copy * PFR_AUDIO_CHANNEL_COUNT,
+           &sPfrAudioQueue.frames[0],
+           remaining * PFR_AUDIO_CHANNEL_COUNT * sizeof(int16_t));
+  }
+
+  return first_copy;
 }
 
 void
-pfr_audio_reset(PfrAudioState* audio_state)
+pfr_audio_reset(void)
 {
-  audio_state->phase_a = 0.0;
-  audio_state->phase_b = 0.0;
-  audio_state->gain = 0.12;
-  audio_state->sample_rate = PFR_DEFAULT_AUDIO_SAMPLE_RATE;
-  audio_state->bgm_step = 0;
-  audio_state->se_samples_remaining = 0;
-  audio_state->cry_samples_remaining = 0;
+  memset(&sPfrAudioQueue, 0, sizeof(sPfrAudioQueue));
+  sPfrAudioQueue.source_sample_rate = PFR_DEFAULT_AUDIO_SAMPLE_RATE;
 }
 
 void
-pfr_audio_generate(PfrAudioState* audio_state,
-                   int16_t* samples,
-                   size_t sample_count,
-                   uint16_t held_keys,
-                   uint32_t frame_counter)
+pfr_audio_shutdown(void)
 {
-  const double two_pi = 6.28318530717958647692;
-  double bgm_freq_a = 0.0;
-  double bgm_freq_b = 0.0;
-  double gain = 0.0;
-  u16 se_song = 0;
+}
+
+uint32_t
+pfr_audio_source_sample_rate(void)
+{
+  return sPfrAudioQueue.source_sample_rate;
+}
+
+size_t
+pfr_audio_available_frames(void)
+{
+  return sPfrAudioQueue.frame_count;
+}
+
+void
+pfr_audio_queue_source_frames(const int16_t* samples, size_t frame_count)
+{
   size_t i;
 
-  (void)frame_counter;
-
-  if (pfr_stub_is_bgm_playing()) {
-    switch (pfr_stub_current_bgm()) {
-      case MUS_TITLE:
-        bgm_freq_a = pfr_audio_title_frequency(audio_state->bgm_step, 1.0);
-        bgm_freq_b = pfr_audio_title_frequency(audio_state->bgm_step, 0.5);
-        gain = 0.10;
-        break;
-      default:
-        bgm_freq_a = 220.0;
-        bgm_freq_b = 330.0;
-        gain = 0.08;
-        break;
-    }
+  if (samples == NULL || frame_count == 0) {
+    return;
   }
 
-  if (pfr_stub_take_se(&se_song)) {
-    audio_state->se_samples_remaining = audio_state->sample_rate / 12;
-  }
+  for (i = 0; i < frame_count; i++) {
+    size_t write_index;
+    size_t frame_offset;
 
-  if (pfr_stub_take_cry()) {
-    audio_state->cry_samples_remaining = audio_state->sample_rate / 3;
-  } else if (bgm_freq_a == 0.0) {
-    if ((held_keys & A_BUTTON) != 0) {
-      bgm_freq_a = 440.0;
-      bgm_freq_b = 220.0;
-      gain = 0.12;
-    } else if ((held_keys & B_BUTTON) != 0) {
-      bgm_freq_a = 523.25;
-      bgm_freq_b = 261.63;
-      gain = 0.12;
-    } else if ((held_keys & START_BUTTON) != 0) {
-      bgm_freq_a = 330.0;
-      bgm_freq_b = 165.0;
-      gain = 0.14;
-    }
-  }
-
-  for (i = 0; i < sample_count; i++) {
-    double value = 0.0;
-
-    if (bgm_freq_a > 0.0) {
-      value += sin(audio_state->phase_a) * gain;
-      value += pfr_audio_square(audio_state->phase_b) * (gain * 0.35);
-      audio_state->phase_a +=
-        two_pi * bgm_freq_a / (double)audio_state->sample_rate;
-      audio_state->phase_b +=
-        two_pi * bgm_freq_b / (double)audio_state->sample_rate;
-
-      if (audio_state->phase_a >= two_pi) {
-        audio_state->phase_a -= two_pi;
-      }
-
-      if (audio_state->phase_b >= two_pi) {
-        audio_state->phase_b -= two_pi;
-      }
+    if (sPfrAudioQueue.frame_count == PFR_AUDIO_QUEUE_CAPACITY) {
+      sPfrAudioQueue.read_index =
+        (sPfrAudioQueue.read_index + 1) % PFR_AUDIO_QUEUE_CAPACITY;
+      sPfrAudioQueue.frame_count--;
+      sPfrAudioQueue.overrun_count++;
     }
 
-    if (audio_state->se_samples_remaining > 0) {
-      double se_phase = (double)audio_state->se_samples_remaining /
-                        (double)audio_state->sample_rate;
-      double se_freq = se_song == SE_SELECT ? 1174.66 : 880.0;
-
-      value += sin(two_pi * se_freq * se_phase) * 0.22;
-      audio_state->se_samples_remaining--;
-    }
-
-    if (audio_state->cry_samples_remaining > 0) {
-      double cry_progress = (double)audio_state->cry_samples_remaining /
-                            (double)audio_state->sample_rate;
-      double cry_freq = 880.0 - cry_progress * 960.0;
-
-      value += sin(audio_state->phase_a * 0.5) * 0.08;
-      value += pfr_audio_square(two_pi * cry_freq * cry_progress) * 0.12;
-      audio_state->cry_samples_remaining--;
-    }
-
-    if (value > 1.0) {
-      value = 1.0;
-    } else if (value < -1.0) {
-      value = -1.0;
-    }
-
-    samples[i] = (int16_t)(value * 32767.0);
-  }
-
-  if (bgm_freq_a > 0.0) {
-    audio_state->bgm_step++;
-    if (audio_state->bgm_step >= 8U * 6U) {
-      audio_state->bgm_step = 0;
-    }
+    write_index = (sPfrAudioQueue.read_index + sPfrAudioQueue.frame_count) %
+                  PFR_AUDIO_QUEUE_CAPACITY;
+    frame_offset = pfr_audio_frame_offset(write_index);
+    sPfrAudioQueue.frames[frame_offset + 0] =
+      samples[i * PFR_AUDIO_CHANNEL_COUNT + 0];
+    sPfrAudioQueue.frames[frame_offset + 1] =
+      samples[i * PFR_AUDIO_CHANNEL_COUNT + 1];
+    sPfrAudioQueue.frame_count++;
   }
 }
 
-bool
-pfr_audio_has_signal(const int16_t* samples, size_t sample_count)
+size_t
+pfr_audio_drain_source_frames(int16_t* output, size_t frame_count)
 {
-  size_t i;
+  size_t available = sPfrAudioQueue.frame_count;
+  size_t to_copy = frame_count;
 
-  for (i = 0; i < sample_count; i++) {
-    if (samples[i] != 0) {
-      return true;
-    }
+  if (to_copy > available) {
+    to_copy = available;
   }
 
-  return false;
+  if (output != NULL && to_copy != 0) {
+    pfr_audio_copy_frames(
+      output, to_copy, sPfrAudioQueue.read_index, sPfrAudioQueue.frame_count);
+  }
+
+  sPfrAudioQueue.read_index =
+    (sPfrAudioQueue.read_index + to_copy) % PFR_AUDIO_QUEUE_CAPACITY;
+  sPfrAudioQueue.frame_count -= to_copy;
+
+  if (to_copy < frame_count) {
+    size_t missing = frame_count - to_copy;
+
+    if (output != NULL) {
+      memset(output + to_copy * PFR_AUDIO_CHANNEL_COUNT,
+             0,
+             missing * PFR_AUDIO_CHANNEL_COUNT * sizeof(int16_t));
+    }
+
+    sPfrAudioQueue.underrun_count++;
+  }
+
+  return to_copy;
+}
+
+size_t
+pfr_audio_drain_resampled_frames(int16_t* output,
+                                 size_t frame_count,
+                                 uint32_t output_sample_rate)
+{
+  size_t frame_index;
+
+  if (output == NULL || frame_count == 0) {
+    return 0;
+  }
+
+  if (output_sample_rate == 0 ||
+      output_sample_rate == sPfrAudioQueue.source_sample_rate) {
+    return pfr_audio_drain_source_frames(output, frame_count);
+  }
+
+  for (frame_index = 0; frame_index < frame_count; frame_index++) {
+    size_t base_frame = (size_t)sPfrAudioQueue.resample_position;
+    double fraction = sPfrAudioQueue.resample_position - (double)base_frame;
+    int16_t source0[2] = { 0, 0 };
+    int16_t source1[2] = { 0, 0 };
+
+    if (base_frame < sPfrAudioQueue.frame_count) {
+      size_t source_index =
+        (sPfrAudioQueue.read_index + base_frame) % PFR_AUDIO_QUEUE_CAPACITY;
+      size_t source_offset = pfr_audio_frame_offset(source_index);
+
+      source0[0] = sPfrAudioQueue.frames[source_offset + 0];
+      source0[1] = sPfrAudioQueue.frames[source_offset + 1];
+    }
+
+    if (base_frame + 1 < sPfrAudioQueue.frame_count) {
+      size_t source_index =
+        (sPfrAudioQueue.read_index + base_frame + 1) % PFR_AUDIO_QUEUE_CAPACITY;
+      size_t source_offset = pfr_audio_frame_offset(source_index);
+
+      source1[0] = sPfrAudioQueue.frames[source_offset + 0];
+      source1[1] = sPfrAudioQueue.frames[source_offset + 1];
+    } else {
+      source1[0] = source0[0];
+      source1[1] = source0[1];
+    }
+
+    output[frame_index * 2 + 0] =
+      (int16_t)(source0[0] + (double)(source1[0] - source0[0]) * fraction);
+    output[frame_index * 2 + 1] =
+      (int16_t)(source0[1] + (double)(source1[1] - source0[1]) * fraction);
+
+    sPfrAudioQueue.resample_position +=
+      (double)sPfrAudioQueue.source_sample_rate / (double)output_sample_rate;
+  }
+
+  if (sPfrAudioQueue.frame_count != 0) {
+    size_t consumed = (size_t)sPfrAudioQueue.resample_position;
+
+    if (consumed > sPfrAudioQueue.frame_count) {
+      consumed = sPfrAudioQueue.frame_count;
+    }
+
+    sPfrAudioQueue.read_index =
+      (sPfrAudioQueue.read_index + consumed) % PFR_AUDIO_QUEUE_CAPACITY;
+    sPfrAudioQueue.frame_count -= consumed;
+    sPfrAudioQueue.resample_position -= (double)consumed;
+  } else {
+    sPfrAudioQueue.resample_position = 0.0;
+    sPfrAudioQueue.underrun_count++;
+  }
+
+  return frame_count;
+}
+
+PfrAudioStats
+pfr_audio_stats(void)
+{
+  PfrAudioStats stats;
+
+  stats.source_sample_rate = sPfrAudioQueue.source_sample_rate;
+  stats.queued_frames = sPfrAudioQueue.frame_count;
+  stats.underrun_count = sPfrAudioQueue.underrun_count;
+  stats.overrun_count = sPfrAudioQueue.overrun_count;
+  return stats;
 }

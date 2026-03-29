@@ -19,11 +19,26 @@ function(pfr_define_native_tool_targets)
   add_executable(pfr_native_assettool tools/native_asset_tool.c)
   target_link_libraries(pfr_native_assettool PRIVATE raylib)
   pfr_apply_native_warnings(pfr_native_assettool)
+
+  add_executable(
+    mid2agb
+    ../../tools/mid2agb/agb.cpp
+    ../../tools/mid2agb/error.cpp
+    ../../tools/mid2agb/main.cpp
+    ../../tools/mid2agb/midi.cpp
+    ../../tools/mid2agb/tables.cpp)
+
+  add_executable(
+    wav2agb
+    ../../tools/wav2agb/converter.cpp
+    ../../tools/wav2agb/wav_file.cpp
+    ../../tools/wav2agb/wav2agb.cpp)
 endfunction()
 
 function(pfr_define_native_runtime_targets)
   set(PFR_CORE_SOURCES
       src/audio.c
+      src/audio_runtime.c
       src/core.c
       src/dma.c
       src/dma3.c
@@ -36,7 +51,8 @@ function(pfr_define_native_runtime_targets)
       src/stubs.c
       src/syscall.c
       src/task.c
-      src/text_runtime.c)
+      src/text_runtime.c
+      ${PFR_GENERATED_AUDIO_ASSETS})
 
   add_library(pfr_core STATIC ${PFR_CORE_SOURCES})
   target_include_directories(
@@ -52,6 +68,7 @@ function(pfr_define_native_runtime_targets)
   set(PFR_GAME_SOURCES
       ../../src/random.c
       ../../src/malloc.c
+      src/sound_runtime.c
       ../../src/string_util.c
       ${PFR_GENERATED_TEXT}
       ../../src/blend_palette.c

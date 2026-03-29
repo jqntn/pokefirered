@@ -6,6 +6,7 @@
 #include "dma3.h"
 #include "global.h"
 #include "gpu_regs.h"
+#include "m4a.h"
 #include "main.h"
 #include "pfr/core.h"
 #include "pfr/dma.h"
@@ -16,6 +17,8 @@
 
 void
 SetDefaultFontsPointer(void);
+void
+InitMapMusic(void);
 
 enum
 {
@@ -93,6 +96,13 @@ pfr_main_init(void)
   sTrainerId = 0;
   pfr_dma_reset();
   InitKeys();
+  m4aSoundInit();
+  m4aSoundVSyncOn();
+  InitMapMusic();
+  SetGpuReg(REG_OFFSET_DISPSTAT,
+            (u16)((GetGpuReg(REG_OFFSET_DISPSTAT) & 0x00FF) |
+                  (PFR_VCOUNT_DEFAULT_LINE << 8) | DISPSTAT_VCOUNT_INTR));
+  EnableInterrupts(INTR_FLAG_VCOUNT);
   REG_KEYINPUT = KEYS_MASK;
 }
 
@@ -172,11 +182,6 @@ DoSoftReset(void)
 }
 
 void
-ClearPokemonCrySongs(void)
-{
-}
-
-void
 RestoreSerialTimer3IntrHandlers(void)
 {
 }
@@ -248,6 +253,8 @@ pfr_main_on_hblank(void)
 void
 pfr_main_on_vcount(void)
 {
+  m4aSoundVSync();
+
   if (gMain.vcountCallback != NULL) {
     gMain.vcountCallback();
   }
@@ -270,6 +277,7 @@ pfr_main_on_vblank(void)
 
   CopyBufferedValuesToGpuRegs();
   ProcessDma3Requests();
+  m4aSoundMain();
 
   if (!gMain.oamLoadDisabled) {
     memcpy(gPfrOam, gMain.oamBuffer, PFR_OAM_SIZE);

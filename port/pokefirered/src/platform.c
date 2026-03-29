@@ -12,6 +12,7 @@
 #define PFR_MAX_AUTO_START_FRAMES 8
 #define PFR_GBA_FRAME_SECONDS (280896.0 / 16777216.0)
 #define PFR_MAX_FRAME_PACING_DRIFT 4.0
+#define PFR_HOST_AUDIO_SAMPLE_RATE 48000
 
 typedef struct PfrOptions
 {
@@ -25,7 +26,7 @@ typedef struct PfrOptions
   PfrMode mode;
 } PfrOptions;
 
-static const float sPfrMasterVolume = 0.0f;
+static const float sPfrMasterVolume = 1.0f;
 
 static bool
 pfr_parse_u32(const char* text, uint32_t* value)
@@ -228,17 +229,17 @@ pfr_poll_keys(void)
 }
 
 static void
-pfr_update_audio(AudioStream* stream, PfrAudioState* audio_state)
+pfr_update_audio(AudioStream* stream)
 {
-  int16_t samples[512];
+  int16_t samples[512 * PFR_AUDIO_CHANNEL_COUNT];
 
   while (IsAudioStreamProcessed(*stream)) {
-    pfr_audio_generate(audio_state,
-                       samples,
-                       PFR_ARRAY_COUNT(samples),
-                       gPfrRuntimeState.keys_held,
-                       gPfrRuntimeState.frame_counter);
-    UpdateAudioStream(*stream, samples, PFR_ARRAY_COUNT(samples));
+    pfr_audio_drain_resampled_frames(samples,
+                                     PFR_ARRAY_COUNT(samples) /
+                                       PFR_AUDIO_CHANNEL_COUNT,
+                                     PFR_HOST_AUDIO_SAMPLE_RATE);
+    UpdateAudioStream(
+      *stream, samples, PFR_ARRAY_COUNT(samples) / PFR_AUDIO_CHANNEL_COUNT);
   }
 }
 
@@ -312,21 +313,12 @@ pfr_compute_target_rect(void)
 static int
 pfr_run_headless(const PfrOptions* options)
 {
-  PfrAudioState audio_state;
   uint32_t frames = options->frame_limit == 0 ? 60U : options->frame_limit;
   uint32_t frame_index;
-  int16_t samples[256];
-
-  pfr_audio_reset(&audio_state);
 
   for (frame_index = 0; frame_index < frames; frame_index++) {
     pfr_core_set_keys(pfr_keys_for_frame(options, frame_index, 0));
     pfr_core_run_frame();
-    pfr_audio_generate(&audio_state,
-                       samples,
-                       PFR_ARRAY_COUNT(samples),
-                       gPfrRuntimeState.keys_held,
-                       gPfrRuntimeState.frame_counter);
 
     if (options->quit_on_title && pfr_core_is_title_visible()) {
       return 0;
@@ -364,7 +356,6 @@ pfr_run_windowed(const PfrOptions* options)
   };
   Texture2D texture;
   AudioStream stream;
-  PfrAudioState audio_state;
   uint32_t frame_index = 0;
   double next_frame_time;
 
@@ -378,8 +369,9 @@ pfr_run_windowed(const PfrOptions* options)
 
   InitAudioDevice();
   SetMasterVolume(sPfrMasterVolume);
-  stream = LoadAudioStream(PFR_DEFAULT_AUDIO_SAMPLE_RATE, 16, 1);
-  pfr_audio_reset(&audio_state);
+  stream =
+    LoadAudioStream(PFR_HOST_AUDIO_SAMPLE_RATE, 16, PFR_AUDIO_CHANNEL_COUNT);
+  pfr_audio_reset();
   PlayAudioStream(stream);
   next_frame_time = GetTime();
 
@@ -394,7 +386,7 @@ pfr_run_windowed(const PfrOptions* options)
       pfr_keys_for_frame(options, frame_index, pfr_poll_keys()));
     pfr_core_run_frame();
     UpdateTexture(texture, pfr_core_framebuffer());
-    pfr_update_audio(&stream, &audio_state);
+    pfr_update_audio(&stream);
 
     BeginDrawing();
     ClearBackground(BLACK);
@@ -466,6 +458,7 @@ pfr_platform_main(int argc, char** argv)
   }
 
   pfr_core_init(options.save_path, options.mode);
+  pfr_audio_reset();
 
   if (options.headless) {
     result = pfr_run_headless(&options);
@@ -473,6 +466,7 @@ pfr_platform_main(int argc, char** argv)
     result = pfr_run_windowed(&options);
   }
 
+  pfr_audio_shutdown();
   pfr_core_shutdown();
   return result;
 }

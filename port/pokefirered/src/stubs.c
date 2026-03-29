@@ -9,7 +9,6 @@
 #include "clear_save_data_screen.h"
 #include "decompress.h"
 #include "event_data.h"
-#include "gba/m4a_internal.h"
 #include "gba/types.h"
 #include "gpu_regs.h"
 #include "help_system.h"
@@ -24,16 +23,10 @@
 #include "pokedex.h"
 #include "save.h"
 #include "scanline_effect.h"
-#include "sound.h"
 #include "sprite.h"
 #include "task.h"
 #include "window.h"
 
-static bool8 sBgmPlaying;
-static bool8 sSePlaying;
-static bool8 sCryPlaying;
-static u16 sCurrentBgm;
-static u16 sCurrentSe;
 static u16 sTempTileDataBufferCursor;
 static void* sTempTileDataBuffers[32];
 static const u8 sEmptyPlaceholder[] = { EOS };
@@ -57,120 +50,8 @@ pfr_copy_decompressed_tile_data_to_vram(u8 bgId,
   }
 }
 
-struct MusicPlayerInfo gMPlayInfo_BGM = { 0 };
-struct MusicPlayerInfo gMPlayInfo_SE1 = { 0 };
-struct MusicPlayerInfo gMPlayInfo_SE2 = { 0 };
-struct MusicPlayerInfo gMPlayInfo_SE3 = { 0 };
 u8 gQuestLogState = 0;
 const struct OamData gOamData_AffineOff_ObjNormal_16x16 = { 0 };
-
-void
-PlayCry_ByMode(u16 species, s8 pan, u8 mode)
-{
-  (void)species;
-  (void)pan;
-  (void)mode;
-  sCryPlaying = TRUE;
-}
-
-void
-PlayCry_Normal(u16 species, s8 pan)
-{
-  PlayCry_ByMode(species, pan, 0);
-}
-
-void
-PlaySE(u16 songNum)
-{
-  sCurrentSe = songNum;
-  sSePlaying = TRUE;
-}
-
-void
-SetPokemonCryStereo(u32 val)
-{
-  (void)val;
-}
-
-void
-m4aSongNumStart(u16 n)
-{
-  sCurrentBgm = n;
-  sBgmPlaying = TRUE;
-}
-
-void
-m4aMPlayAllStop(void)
-{
-  sBgmPlaying = FALSE;
-  sSePlaying = FALSE;
-  sCryPlaying = FALSE;
-}
-
-void
-m4aMPlayStop(struct MusicPlayerInfo* mplayInfo)
-{
-  if (mplayInfo == &gMPlayInfo_BGM) {
-    sBgmPlaying = FALSE;
-  }
-}
-
-void
-m4aMPlayContinue(struct MusicPlayerInfo* mplayInfo)
-{
-  if (mplayInfo == &gMPlayInfo_BGM && sCurrentBgm != 0) {
-    sBgmPlaying = TRUE;
-  }
-}
-
-bool8
-IsNotWaitingForBGMStop(void)
-{
-  return TRUE;
-}
-
-void
-FadeOutBGM(u8 speed)
-{
-  (void)speed;
-  sBgmPlaying = FALSE;
-}
-
-void
-FadeOutMapMusic(u8 speed)
-{
-  FadeOutBGM(speed);
-}
-
-void
-PlayBGM(u16 songNum)
-{
-  m4aSongNumStart(songNum);
-}
-
-bool8
-IsBGMPlaying(void)
-{
-  return sBgmPlaying;
-}
-
-bool8
-IsSEPlaying(void)
-{
-  bool8 result = sSePlaying;
-
-  sSePlaying = FALSE;
-  return result;
-}
-
-bool8
-IsCryPlaying(void)
-{
-  bool8 result = sCryPlaying;
-
-  sCryPlaying = FALSE;
-  return result;
-}
 
 void
 GameCubeMultiBoot_Main(void)
@@ -481,39 +362,6 @@ DynamicPlaceholderTextUtil_GetPlaceholderPtr(u8 idx)
 {
   (void)idx;
   return sEmptyPlaceholder;
-}
-
-u16
-pfr_stub_current_bgm(void)
-{
-  return sCurrentBgm;
-}
-
-bool8
-pfr_stub_is_bgm_playing(void)
-{
-  return sBgmPlaying;
-}
-
-bool8
-pfr_stub_take_se(u16* songNum)
-{
-  if (!sSePlaying) {
-    return FALSE;
-  }
-
-  *songNum = sCurrentSe;
-  sSePlaying = FALSE;
-  return TRUE;
-}
-
-bool8
-pfr_stub_take_cry(void)
-{
-  bool8 active = sCryPlaying;
-
-  sCryPlaying = FALSE;
-  return active;
 }
 
 static void

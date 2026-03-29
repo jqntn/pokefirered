@@ -3,26 +3,37 @@
 
 #include "pfr/common.h"
 
-typedef struct PfrAudioState
+enum
 {
-  double phase_a;
-  double phase_b;
-  double gain;
-  int sample_rate;
-  uint32_t bgm_step;
-  int se_samples_remaining;
-  int cry_samples_remaining;
-} PfrAudioState;
+  PFR_AUDIO_CHANNEL_COUNT = 2,
+  PFR_AUDIO_QUEUE_CAPACITY = PFR_DEFAULT_AUDIO_SAMPLE_RATE * 12,
+};
+
+typedef struct PfrAudioStats
+{
+  uint32_t source_sample_rate;
+  size_t queued_frames;
+  uint64_t underrun_count;
+  uint64_t overrun_count;
+} PfrAudioStats;
 
 void
-pfr_audio_reset(PfrAudioState* audio_state);
+pfr_audio_reset(void);
 void
-pfr_audio_generate(PfrAudioState* audio_state,
-                   int16_t* samples,
-                   size_t sample_count,
-                   uint16_t held_keys,
-                   uint32_t frame_counter);
-bool
-pfr_audio_has_signal(const int16_t* samples, size_t sample_count);
+pfr_audio_shutdown(void);
+uint32_t
+pfr_audio_source_sample_rate(void);
+size_t
+pfr_audio_available_frames(void);
+void
+pfr_audio_queue_source_frames(const int16_t* samples, size_t frame_count);
+size_t
+pfr_audio_drain_source_frames(int16_t* output, size_t frame_count);
+size_t
+pfr_audio_drain_resampled_frames(int16_t* output,
+                                 size_t frame_count,
+                                 uint32_t output_sample_rate);
+PfrAudioStats
+pfr_audio_stats(void);
 
 #endif

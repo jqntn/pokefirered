@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "constants/songs.h"
 #include "dma3.h"
 #include "gba/io_reg.h"
 #include "gba/syscall.h"
@@ -18,6 +19,7 @@
 #include "pfr/main_runtime.h"
 #include "pfr/renderer.h"
 #include "pfr/storage.h"
+#include "pfr/stubs.h"
 #include "raylib.h"
 #include "task.h"
 
@@ -27,6 +29,78 @@ static int sFollowupState;
 static int sMainLog[4];
 static size_t sMainLogCount;
 static int sVBlankCount;
+
+typedef struct PfrAudioWindow
+{
+  const char* name;
+  int remaining_frames;
+  bool active;
+  bool done;
+  uint32_t hash;
+} PfrAudioWindow;
+
+static void
+test_audio_window_begin(PfrAudioWindow* window,
+                        const char* name,
+                        int frame_count)
+{
+  window->name = name;
+  window->remaining_frames = frame_count;
+  window->active = true;
+  window->done = false;
+  window->hash = 2166136261u;
+}
+
+static void
+test_audio_window_feed(PfrAudioWindow* window,
+                       const int16_t* samples,
+                       size_t sample_count)
+{
+  size_t i;
+
+  if (!window->active) {
+    return;
+  }
+
+  for (i = 0; i < sample_count; i++) {
+    uint16_t sample_bits = (uint16_t)samples[i];
+
+    window->hash ^= (uint8_t)(sample_bits & 0xFF);
+    window->hash *= 16777619u;
+    window->hash ^= (uint8_t)(sample_bits >> 8);
+    window->hash *= 16777619u;
+  }
+
+  if (--window->remaining_frames == 0) {
+    window->active = false;
+    window->done = true;
+  }
+}
+
+static void
+test_audio_resampler(void)
+{
+  static const int16_t source_frames[] = {
+    1000, 1000, 3000, 3000, 5000, 5000,
+  };
+  int16_t output[4 * PFR_AUDIO_CHANNEL_COUNT] = { 0 };
+
+  pfr_audio_reset();
+  pfr_audio_queue_source_frames(source_frames, 3);
+  assert(pfr_audio_drain_resampled_frames(
+           output, 4, PFR_DEFAULT_AUDIO_SAMPLE_RATE * 2) == 4);
+
+  assert(output[0] == 1000);
+  assert(output[1] == 1000);
+  assert(output[2] == 2000);
+  assert(output[3] == 2000);
+  assert(output[4] == 3000);
+  assert(output[5] == 3000);
+  assert(output[6] == 4000);
+  assert(output[7] == 4000);
+  assert(pfr_audio_available_frames() == 1);
+  pfr_audio_reset();
+}
 
 static void
 test_dma3_trace(const char* step)
@@ -1174,24 +1248,107 @@ test_main_runtime(void)
 static void
 test_core_and_audio(void)
 {
-  PfrAudioState audio_state;
-  int16_t samples[256] = { 0 };
+  PfrAudioStats stats;
+  int16_t frame_audio[224 * PFR_AUDIO_CHANNEL_COUNT];
+  PfrAudioWindow intro_window = { 0 };
+  PfrAudioWindow title_window = { 0 };
+  PfrAudioWindow cry_window = { 0 };
+  PfrAudioWindow menu_window = { 0 };
+  bool title_bgm_started = false;
+  bool title_cry_started = false;
+  bool title_bgm_stopped = false;
+  bool main_menu_seen = false;
+  bool menu_select_started = false;
+  bool menu_input_sent = false;
+  uint16_t se_song = 0;
+  uint32_t frame_index;
+  uint32_t main_menu_seen_frame = 0;
 
   pfr_core_init("pfr_smoke_core.sav", PFR_MODE_GAME);
-  pfr_core_set_keys(A_BUTTON | DPAD_RIGHT);
-  pfr_core_run_frame();
+  pfr_audio_reset();
+  test_audio_window_begin(&intro_window, "intro", 120);
+
+  for (frame_index = 0; frame_index < 2600; frame_index++) {
+    uint16_t keys = 0;
+
+    if (frame_index == 1860) {
+      keys |= START_BUTTON;
+    }
+
+    if (pfr_core_is_main_menu_visible() && !main_menu_seen) {
+      main_menu_seen = true;
+      main_menu_seen_frame = frame_index;
+    }
+
+    if (main_menu_seen && !menu_input_sent &&
+        frame_index >= main_menu_seen_frame + 120) {
+      keys |= A_BUTTON;
+      menu_input_sent = true;
+    }
+
+    pfr_core_set_keys(keys);
+    pfr_core_run_frame();
+
+    if (!title_bgm_started && pfr_stub_current_bgm() == MUS_TITLE &&
+        pfr_stub_is_bgm_playing()) {
+      title_bgm_started = true;
+      test_audio_window_begin(&title_window, "title", 90);
+    }
+
+    if (title_bgm_started && !title_cry_started && pfr_stub_take_cry()) {
+      title_cry_started = true;
+      test_audio_window_begin(&cry_window, "cry", 45);
+    }
+
+    if (title_bgm_started && !title_bgm_stopped && !pfr_stub_is_bgm_playing()) {
+      title_bgm_stopped = true;
+    }
+
+    if (!menu_select_started && pfr_stub_take_se(&se_song)) {
+      if (se_song == SE_SELECT) {
+        menu_select_started = true;
+        test_audio_window_begin(&menu_window, "menu", 20);
+      }
+    }
+
+    assert(pfr_audio_drain_source_frames(frame_audio, 224) == 224);
+    test_audio_window_feed(
+      &intro_window, frame_audio, PFR_ARRAY_COUNT(frame_audio));
+    test_audio_window_feed(
+      &title_window, frame_audio, PFR_ARRAY_COUNT(frame_audio));
+    test_audio_window_feed(
+      &cry_window, frame_audio, PFR_ARRAY_COUNT(frame_audio));
+    test_audio_window_feed(
+      &menu_window, frame_audio, PFR_ARRAY_COUNT(frame_audio));
+
+    if (pfr_core_should_quit()) {
+      break;
+    }
+  }
+
   assert(pfr_core_frame_checksum() != 0);
-  assert(gPfrRuntimeState.keys_held == (A_BUTTON | DPAD_RIGHT));
+  assert(main_menu_seen);
+  assert(title_bgm_started);
+  assert(title_cry_started);
+  assert(title_bgm_stopped);
+  assert(menu_select_started);
+  assert(intro_window.done);
+  assert(title_window.done);
+  assert(cry_window.done);
+  assert(menu_window.done);
+  assert(intro_window.hash == 0x2E85EDC5u);
+  assert(title_window.hash == 0x54AE625Cu);
+  assert(cry_window.hash == 0xFA90E5AAu);
+  assert(menu_window.hash == 0x7F0B95A1u);
 
   gPfrRuntimeState.save[0] = 42;
   gPfrRuntimeState.save_dirty = true;
   pfr_core_flush_save();
   pfr_core_shutdown();
 
-  pfr_audio_reset(&audio_state);
-  pfr_audio_generate(
-    &audio_state, samples, PFR_ARRAY_COUNT(samples), A_BUTTON, 1);
-  assert(pfr_audio_has_signal(samples, PFR_ARRAY_COUNT(samples)));
+  stats = pfr_audio_stats();
+  assert(stats.source_sample_rate == PFR_DEFAULT_AUDIO_SAMPLE_RATE);
+  assert(stats.queued_frames == pfr_audio_available_frames());
   remove("pfr_smoke_core.sav");
 }
 
@@ -1271,6 +1428,9 @@ main(void)
   fflush(stdout);
   test_storage_default_path();
   printf("pfr_smoke: test_storage_default_path ok\n");
+  fflush(stdout);
+  test_audio_resampler();
+  printf("pfr_smoke: test_audio_resampler ok\n");
   fflush(stdout);
   test_tasks();
   printf("pfr_smoke: test_tasks ok\n");
