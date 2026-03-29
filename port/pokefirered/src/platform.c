@@ -1,5 +1,6 @@
 #include "gba/defines.h"
 #include "gba/io_reg.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +27,7 @@ typedef struct PfrOptions
   PfrMode mode;
 } PfrOptions;
 
-static const float sPfrMasterVolume = 1.0f;
+static const float sPfrMasterVolume = 0.25f;
 
 static bool
 pfr_parse_u32(const char* text, uint32_t* value)
