@@ -412,6 +412,61 @@ test_renderer_respects_forced_blank(void)
 }
 
 static void
+test_renderer_limits_scanline_sprites_to_32_objs(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_visible;
+  int i;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[0x100 + 1] = 0x001F;
+  ((u16*)gPfrPltt)[0x100 + 2] = 0x03E0;
+  gPfrVram[0x10000] = 0x11;
+  gPfrVram[0x10000 + 32] = 0x22;
+
+  for (i = 0; i < 32; i++) {
+    oam[i].affineMode = ST_OAM_AFFINE_OFF;
+    oam[i].objMode = ST_OAM_OBJ_NORMAL;
+    oam[i].mosaic = FALSE;
+    oam[i].bpp = ST_OAM_4BPP;
+    oam[i].shape = ST_OAM_SQUARE;
+    oam[i].x = 0;
+    oam[i].y = 0;
+    oam[i].size = ST_OAM_SIZE_0;
+    oam[i].tileNum = 0;
+    oam[i].priority = 3;
+    oam[i].paletteNum = 0;
+  }
+
+  oam[32].affineMode = ST_OAM_AFFINE_OFF;
+  oam[32].objMode = ST_OAM_OBJ_NORMAL;
+  oam[32].mosaic = FALSE;
+  oam[32].bpp = ST_OAM_4BPP;
+  oam[32].shape = ST_OAM_SQUARE;
+  oam[32].x = 0;
+  oam[32].y = 0;
+  oam[32].size = ST_OAM_SIZE_0;
+  oam[32].tileNum = 1;
+  oam[32].priority = 0;
+  oam[32].paletteNum = 0;
+
+  pfr_renderer_init();
+
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_visible = test_rgb555_to_rgba8888(0x001F);
+  assert(framebuffer[0] == expected_visible);
+}
+
+static void
 test_renderer_obj_window_lightens_bg0(void)
 {
   struct OamData* oam = (struct OamData*)gPfrOam;
@@ -840,6 +895,9 @@ main(void)
   fflush(stdout);
   test_renderer_respects_forced_blank();
   printf("pfr_smoke: test_renderer_respects_forced_blank ok\n");
+  fflush(stdout);
+  test_renderer_limits_scanline_sprites_to_32_objs();
+  printf("pfr_smoke: test_renderer_limits_scanline_sprites_to_32_objs ok\n");
   fflush(stdout);
   test_renderer_obj_window_lightens_bg0();
   printf("pfr_smoke: test_renderer_obj_window_lightens_bg0 ok\n");

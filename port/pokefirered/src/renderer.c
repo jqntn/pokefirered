@@ -47,10 +47,11 @@ typedef struct PfrLineRegs
 static uint32_t sFramebuffer[PFR_SCREEN_WIDTH * PFR_SCREEN_HEIGHT];
 static PfrLineRegs sLineRegs[DISPLAY_HEIGHT];
 static u8 sScanlineSpriteCounts[DISPLAY_HEIGHT];
-static u8 sScanlineSpriteIndices[DISPLAY_HEIGHT][128];
+static u8 sScanlineSpriteIndices[DISPLAY_HEIGHT][32];
 
 enum
 {
+  PFR_MAX_SPRITES_PER_SCANLINE = 32,
   PFR_LAYER_BG0 = 1 << 0,
   PFR_LAYER_BG1 = 1 << 1,
   PFR_LAYER_BG2 = 1 << 2,
@@ -559,7 +560,7 @@ pfr_build_scanline_sprite_lists(void)
     for (y = start_y; y < end_y; y++) {
       u8 count = sScanlineSpriteCounts[y];
 
-      if (count < 128) {
+      if (count < PFR_MAX_SPRITES_PER_SCANLINE) {
         sScanlineSpriteIndices[y][count] = (u8)sprite_index;
         sScanlineSpriteCounts[y] = count + 1;
       }
