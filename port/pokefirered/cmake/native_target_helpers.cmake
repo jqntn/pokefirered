@@ -12,11 +12,6 @@ function(pfr_add_port_executable target)
   target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(${target} PRIVATE pfr_core raylib)
   pfr_apply_native_warnings(${target})
-
-  if(NOT MSVC)
-    target_compile_options(
-      ${target} PRIVATE -Wpedantic -fno-strict-aliasing)
-  endif()
 endfunction()
 
 function(pfr_add_port_test_executable target)
@@ -24,9 +19,4 @@ function(pfr_add_port_test_executable target)
   target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(${target} PRIVATE pfr_core)
   pfr_apply_native_warnings(${target})
-
-  if(NOT MSVC)
-    target_compile_options(
-      ${target} PRIVATE -Wpedantic -fno-strict-aliasing)
-  endif()
 endfunction()

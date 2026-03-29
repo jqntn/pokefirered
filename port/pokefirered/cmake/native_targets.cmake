@@ -48,12 +48,6 @@ function(pfr_define_native_runtime_targets)
   pfr_apply_native_warnings(pfr_core)
 
   if(NOT MSVC)
-    target_compile_options(
-      pfr_core
-      PRIVATE
-        -Wpedantic
-        -Wno-strict-prototypes
-        -fno-strict-aliasing)
     target_link_libraries(pfr_core PRIVATE m)
   endif()
 
@@ -92,7 +86,6 @@ function(pfr_define_native_runtime_targets)
             _CRT_SECURE_NO_WARNINGS)
 
   if(NOT MSVC)
-    target_compile_options(pfr_game PRIVATE -fno-strict-aliasing)
     target_link_libraries(pfr_game PRIVATE m)
   endif()
 
