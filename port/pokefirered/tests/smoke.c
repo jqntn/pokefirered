@@ -555,6 +555,44 @@ test_renderer_uses_captured_scanline_bldy(void)
 }
 
 static void
+test_renderer_affine_bg_color_zero_is_transparent(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_bg0;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[1] = 0x001F;
+  gPfrVram[0] = 0x11;
+  gPfrVram[4] = 0x11;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31) = 0;
+
+  pfr_renderer_init();
+
+  REG_BG0CNT = BGCNT_SCREENBASE(31) | BGCNT_16COLOR | BGCNT_PRIORITY(1);
+  REG_BG2CNT = BGCNT_CHARBASE(1) | BGCNT_SCREENBASE(30) | BGCNT_256COLOR |
+               BGCNT_AFF128x128 | BGCNT_PRIORITY(0);
+  REG_BG2PA = 0x0100;
+  REG_BG2PB = 0;
+  REG_BG2PC = 0;
+  REG_BG2PD = 0x0100;
+  REG_BG2X = 0;
+  REG_BG2Y = 0;
+  REG_DISPCNT = DISPCNT_MODE_1 | DISPCNT_BG0_ON | DISPCNT_BG2_ON;
+
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_bg0 = test_rgb555_to_rgba8888(0x001F);
+  assert(framebuffer[0] == expected_bg0);
+}
+
+static void
 test_renderer_uses_captured_scanline_window_visibility(void)
 {
   struct OamData* oam = (struct OamData*)gPfrOam;
@@ -904,6 +942,9 @@ main(void)
   fflush(stdout);
   test_renderer_uses_captured_scanline_bldy();
   printf("pfr_smoke: test_renderer_uses_captured_scanline_bldy ok\n");
+  fflush(stdout);
+  test_renderer_affine_bg_color_zero_is_transparent();
+  printf("pfr_smoke: test_renderer_affine_bg_color_zero_is_transparent ok\n");
   fflush(stdout);
   test_renderer_uses_captured_scanline_window_visibility();
   printf(

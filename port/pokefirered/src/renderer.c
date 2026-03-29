@@ -399,6 +399,10 @@ pfr_sample_affine_bg(const PfrLineRegs* line_regs,
   }
 
   color_index = gPfrVram[tile_offset];
+  if (color_index == 0) {
+    return sample;
+  }
+
   sample.opaque = true;
   sample.color = palette[color_index];
   return sample;
