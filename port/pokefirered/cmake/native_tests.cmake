@@ -28,7 +28,15 @@ function(pfr_define_native_tests)
     COMMAND pokefirered --mode game --headless --frames 1600 --quit-on-title)
   add_test(
     NAME pfr_headless_main_menu
-    COMMAND pokefirered --mode game --headless --frames 2300 --auto-press-start-frame 1860 --auto-press-start-frame 1880 --auto-press-start-frame 1900 --quit-on-main-menu)
+    COMMAND pokefirered
+            --mode
+            game
+            --headless
+            --frames
+            2300
+            --auto-press-start-frame
+            1860
+            --quit-on-main-menu)
   add_test(
     NAME pfr_headless_demo
     COMMAND pokefirered --mode demo --headless --frames 3)

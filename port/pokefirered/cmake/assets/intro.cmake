@@ -1,13 +1,13 @@
 set(PFR_INTRO_GFX_DIR "${PFR_REPO_ROOT}/graphics/intro")
 
-macro(pfr_intro_palette output_rel source_rel)
+function(pfr_intro_palette output_rel source_rel)
   pfr_asset_palette(
     COLLECTION PFR_INTRO_ASSET_FILES
     OUTPUT "${output_rel}"
     SOURCE "${PFR_INTRO_GFX_DIR}/${source_rel}")
-endmacro()
+endfunction()
 
-macro(pfr_intro_tilemap rel_stem palette_rel)
+function(pfr_intro_tilemap rel_stem palette_rel)
   pfr_asset_tilemap_bundle(
     COLLECTION PFR_INTRO_ASSET_FILES
     PALETTE_OUTPUT "graphics/intro/${rel_stem}.gbapal"
@@ -17,15 +17,15 @@ macro(pfr_intro_tilemap rel_stem palette_rel)
     TILE_PALETTE "${PFR_INTRO_GFX_DIR}/${palette_rel}"
     MAP_OUTPUT "graphics/intro/${rel_stem}.bin.lz"
     MAP_SOURCE "${PFR_INTRO_GFX_DIR}/${rel_stem}.bin")
-endmacro()
+endfunction()
 
-macro(pfr_intro_tiles rel_stem palette_rel)
+function(pfr_intro_tiles rel_stem palette_rel)
   pfr_asset_tile4_lz(
     COLLECTION PFR_INTRO_ASSET_FILES
     STEM "graphics/intro/${rel_stem}"
     PNG "${PFR_INTRO_GFX_DIR}/${rel_stem}.png"
     PALETTE "${PFR_INTRO_GFX_DIR}/${palette_rel}")
-endmacro()
+endfunction()
 
 pfr_intro_tilemap("copyright" "copyright.pal")
 pfr_intro_tilemap("game_freak/bg" "game_freak/bg.pal")

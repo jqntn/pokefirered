@@ -10,7 +10,7 @@ endfunction()
 function(pfr_add_port_executable target)
   add_executable(${target} ${ARGN})
   target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  target_link_libraries(${target} PRIVATE pfr_core raylib)
+  target_link_libraries(${target} PRIVATE pfr_core)
   pfr_apply_native_warnings(${target})
 endfunction()
 

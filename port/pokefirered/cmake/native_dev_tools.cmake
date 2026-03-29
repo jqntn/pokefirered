@@ -1,10 +1,11 @@
 function(pfr_define_native_dev_tools)
-  if(WIN32)
-    set(PFR_CLANG_FORMAT
-        "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/Llvm/x64/bin/clang-format.exe")
-  else()
-    find_program(PFR_CLANG_FORMAT NAMES clang-format REQUIRED)
-  endif()
+  find_program(
+    PFR_CLANG_FORMAT
+    NAMES clang-format clang-format.exe
+    HINTS
+      "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/Llvm/x64/bin"
+      "C:/Program Files/Microsoft Visual Studio/17/Community/VC/Tools/Llvm/x64/bin"
+    REQUIRED)
 
   file(
     GLOB_RECURSE PFR_FORMAT_FILES CONFIGURE_DEPENDS

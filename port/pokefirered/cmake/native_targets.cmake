@@ -80,8 +80,12 @@ function(pfr_define_native_runtime_targets)
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
   target_compile_definitions(
     pfr_game
-    PRIVATE MODERN=1 FIRERED ENGLISH NDEBUG BUGFIX PFR_NATIVE=1
-            _CRT_SECURE_NO_WARNINGS)
+    PRIVATE MODERN=1
+            FIRERED
+            ENGLISH
+            NDEBUG
+            BUGFIX
+            $<$<C_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>)
 
   if(NOT MSVC)
     target_link_libraries(pfr_game PRIVATE m)

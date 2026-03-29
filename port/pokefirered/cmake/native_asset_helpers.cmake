@@ -130,22 +130,6 @@ function(pfr_asset_tile4)
   set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
 endfunction()
 
-function(pfr_asset_tile8)
-  cmake_parse_arguments(PFR "" "COLLECTION;OUTPUT;PNG;PALETTE" "" ${ARGN})
-
-  if(NOT PFR_COLLECTION OR NOT PFR_OUTPUT OR NOT PFR_PNG)
-    message(FATAL_ERROR "pfr_asset_tile8 requires COLLECTION, OUTPUT, and PNG")
-  endif()
-
-  if(NOT PFR_PALETTE)
-    set(PFR_PALETTE "${PFR_PNG}")
-  endif()
-
-  pfr_generate_raw_tiles(output tile8 "${PFR_OUTPUT}" "${PFR_PNG}" "${PFR_PALETTE}")
-  pfr_append_files_to_collection("${PFR_COLLECTION}" "${output}")
-  set(${PFR_COLLECTION} "${${PFR_COLLECTION}}" PARENT_SCOPE)
-endfunction()
-
 function(pfr_asset_tile4_lz)
   cmake_parse_arguments(PFR "" "COLLECTION;STEM;PNG;PALETTE" "" ${ARGN})
 

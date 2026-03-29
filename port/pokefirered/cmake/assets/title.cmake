@@ -2,35 +2,35 @@ set(PFR_TITLE_GFX_DIR "${PFR_REPO_ROOT}/graphics/title_screen")
 set(PFR_TITLE_FR_GFX_DIR "${PFR_TITLE_GFX_DIR}/firered")
 set(PFR_TITLE_LG_GFX_DIR "${PFR_TITLE_GFX_DIR}/leafgreen")
 
-macro(pfr_title_palette output_rel source_rel)
+function(pfr_title_palette output_rel source_rel)
   pfr_asset_palette(
     COLLECTION PFR_NATIVE_ASSET_FILES
     OUTPUT "${output_rel}"
     SOURCE "${PFR_TITLE_GFX_DIR}/${source_rel}")
-endmacro()
+endfunction()
 
-macro(pfr_title_bin output_rel source_rel)
+function(pfr_title_bin output_rel source_rel)
   pfr_asset_bin_lz(
     COLLECTION PFR_NATIVE_ASSET_FILES
     OUTPUT "${output_rel}"
     SOURCE "${PFR_TITLE_GFX_DIR}/${source_rel}")
-endmacro()
+endfunction()
 
-macro(pfr_title_tile4_lz rel_stem png_rel palette_rel)
+function(pfr_title_tile4_lz rel_stem png_rel palette_rel)
   pfr_asset_tile4_lz(
     COLLECTION PFR_NATIVE_ASSET_FILES
     STEM "${rel_stem}"
     PNG "${PFR_TITLE_GFX_DIR}/${png_rel}"
     PALETTE "${PFR_TITLE_GFX_DIR}/${palette_rel}")
-endmacro()
+endfunction()
 
-macro(pfr_title_tile8_lz rel_stem png_rel palette_rel)
+function(pfr_title_tile8_lz rel_stem png_rel palette_rel)
   pfr_asset_tile8_lz(
     COLLECTION PFR_NATIVE_ASSET_FILES
     STEM "${rel_stem}"
     PNG "${PFR_TITLE_GFX_DIR}/${png_rel}"
     PALETTE "${PFR_TITLE_GFX_DIR}/${palette_rel}")
-endmacro()
+endfunction()
 
 pfr_title_tile4_lz(
   "graphics/title_screen/border_bg"
