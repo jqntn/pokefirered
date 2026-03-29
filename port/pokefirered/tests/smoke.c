@@ -1254,6 +1254,7 @@ test_core_and_audio(void)
   PfrAudioWindow title_window = { 0 };
   PfrAudioWindow cry_window = { 0 };
   PfrAudioWindow menu_window = { 0 };
+  bool game_freak_started = false;
   bool title_bgm_started = false;
   bool title_cry_started = false;
   bool title_bgm_stopped = false;
@@ -1288,6 +1289,11 @@ test_core_and_audio(void)
 
     pfr_core_set_keys(keys);
     pfr_core_run_frame();
+
+    if (!game_freak_started && pfr_stub_current_bgm() == MUS_GAME_FREAK &&
+        pfr_stub_is_bgm_playing()) {
+      game_freak_started = true;
+    }
 
     if (!title_bgm_started && pfr_stub_current_bgm() == MUS_TITLE &&
         pfr_stub_is_bgm_playing()) {
@@ -1327,6 +1333,7 @@ test_core_and_audio(void)
   }
 
   assert(pfr_core_frame_checksum() != 0);
+  assert(game_freak_started);
   assert(main_menu_seen);
   assert(title_bgm_started);
   assert(title_cry_started);

@@ -14,6 +14,11 @@
 #define PFR_GBA_FRAME_SECONDS (280896.0 / 16777216.0)
 #define PFR_MAX_FRAME_PACING_DRIFT 4.0
 #define PFR_HOST_AUDIO_SAMPLE_RATE 48000
+#define PFR_HOST_AUDIO_STREAM_FRAMES 804
+#define PFR_HOST_AUDIO_PRIME_SOURCE_FRAMES                                     \
+  (((PFR_HOST_AUDIO_STREAM_FRAMES * 2 * PFR_DEFAULT_AUDIO_SAMPLE_RATE) +       \
+    PFR_HOST_AUDIO_SAMPLE_RATE - 1) /                                          \
+   PFR_HOST_AUDIO_SAMPLE_RATE)
 
 typedef struct PfrOptions
 {
@@ -230,9 +235,14 @@ pfr_poll_keys(void)
 }
 
 static void
-pfr_update_audio(AudioStream* stream)
+pfr_update_audio(AudioStream* stream, bool* stream_started)
 {
-  int16_t samples[512 * PFR_AUDIO_CHANNEL_COUNT];
+  int16_t samples[PFR_HOST_AUDIO_STREAM_FRAMES * PFR_AUDIO_CHANNEL_COUNT];
+
+  if (!*stream_started &&
+      pfr_audio_available_frames() < PFR_HOST_AUDIO_PRIME_SOURCE_FRAMES) {
+    return;
+  }
 
   while (IsAudioStreamProcessed(*stream)) {
     pfr_audio_drain_resampled_frames(samples,
@@ -241,6 +251,11 @@ pfr_update_audio(AudioStream* stream)
                                      PFR_HOST_AUDIO_SAMPLE_RATE);
     UpdateAudioStream(
       *stream, samples, PFR_ARRAY_COUNT(samples) / PFR_AUDIO_CHANNEL_COUNT);
+  }
+
+  if (!*stream_started) {
+    PlayAudioStream(*stream);
+    *stream_started = true;
   }
 }
 
@@ -357,6 +372,7 @@ pfr_run_windowed(const PfrOptions* options)
   };
   Texture2D texture;
   AudioStream stream;
+  bool stream_started = false;
   uint32_t frame_index = 0;
   double next_frame_time;
 
@@ -369,11 +385,11 @@ pfr_run_windowed(const PfrOptions* options)
   SetTextureFilter(texture, TEXTURE_FILTER_POINT);
 
   InitAudioDevice();
+  SetAudioStreamBufferSizeDefault(PFR_HOST_AUDIO_STREAM_FRAMES);
   SetMasterVolume(sPfrMasterVolume);
   stream =
     LoadAudioStream(PFR_HOST_AUDIO_SAMPLE_RATE, 16, PFR_AUDIO_CHANNEL_COUNT);
   pfr_audio_reset();
-  PlayAudioStream(stream);
   next_frame_time = GetTime();
 
   while (!WindowShouldClose()) {
@@ -387,7 +403,7 @@ pfr_run_windowed(const PfrOptions* options)
       pfr_keys_for_frame(options, frame_index, pfr_poll_keys()));
     pfr_core_run_frame();
     UpdateTexture(texture, pfr_core_framebuffer());
-    pfr_update_audio(&stream);
+    pfr_update_audio(&stream, &stream_started);
 
     BeginDrawing();
     ClearBackground(BLACK);
