@@ -75,23 +75,23 @@ Current desktop controls:
 
 ### Keyboard
 
-- Arrow keys: D-Pad
-- `X`: A
-- `C`: B
-- `Enter`: Start
-- `Right Shift`: Select
-- `S`: L
-- `D`: R
+- Arrow keys: `D-Pad`
+- X: `A`
+- C: `B`
+- Enter: `Start`
+- Right Shift: `Select`
+- S: `L`
+- D: `R`
 
 ### Gamepad
 
-- D-Pad: D-Pad
-- South / bottom face button: A
-- East / right face button: B
-- Start / Menu: Start
-- Back / Select: Select
-- Left trigger 2: L
-- Right trigger 2: R
+- D-Pad: `D-Pad`
+- South / bottom face button: `A`
+- East / right face button: `B`
+- Start / Menu: `Start`
+- Back / Select: `Select`
+- Left trigger 2: `L`
+- Right trigger 2: `R`
 
 ## Testing
 
