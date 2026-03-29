@@ -1,22 +1,13 @@
 #include <ctype.h>
-#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <direct.h>
-#define pfr_mkdir(path) _mkdir(path)
-#else
-#include <sys/stat.h>
-#include <sys/types.h>
-#define pfr_mkdir(path) mkdir(path, 0777)
-#endif
-
 #include "gba/io_reg.h"
 #include "pfr/core.h"
+#include "raylib.h"
 
 #define BMP_HEADER_SIZE 54
 #define PFR_DEFAULT_MANIFEST_NAME "capture_manifest.txt"
@@ -331,63 +322,11 @@ pfr_load_capture_manifest(PfrCaptureList* captures, const char* path)
 static bool
 pfr_make_directories(const char* path)
 {
-  char buffer[PFR_PATH_BUFFER_SIZE];
-  size_t length;
-  size_t start = 0;
-  size_t i;
-
   if (path == NULL || path[0] == '\0') {
     return false;
   }
 
-  length = strlen(path);
-  if (length >= sizeof(buffer)) {
-    return false;
-  }
-
-  memcpy(buffer, path, length + 1);
-
-  while (length > 1 && pfr_is_path_separator(buffer[length - 1])) {
-#ifdef _WIN32
-    if (length == 3 && buffer[1] == ':') {
-      break;
-    }
-#endif
-    buffer[--length] = '\0';
-  }
-
-#ifdef _WIN32
-  if (length >= 2 && buffer[1] == ':') {
-    start = 2;
-    if (length >= 3 && pfr_is_path_separator(buffer[2])) {
-      start = 3;
-    }
-  }
-#endif
-
-  for (i = start; i < length; i++) {
-    int mkdir_result;
-
-    if (!pfr_is_path_separator(buffer[i])) {
-      continue;
-    }
-
-    buffer[i] = '\0';
-    if (buffer[0] != '\0') {
-      mkdir_result = pfr_mkdir(buffer);
-      if (mkdir_result != 0 && errno != EEXIST) {
-        return false;
-      }
-    }
-
-    buffer[i] = path[i];
-  }
-
-  if (pfr_mkdir(buffer) != 0 && errno != EEXIST) {
-    return false;
-  }
-
-  return true;
+  return DirectoryExists(path) || MakeDirectory(path) == 0;
 }
 
 static void
