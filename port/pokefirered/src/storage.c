@@ -23,6 +23,35 @@ pfr_storage_write_file(const char* path, const void* data, size_t size)
   return fclose(file) == 0;
 }
 
+static bool
+pfr_storage_replace_file(const char* temp_path, const char* path)
+{
+  char backup_path[PFR_MAX_PATH + 4];
+
+  if (rename(temp_path, path) == 0) {
+    return true;
+  }
+
+  if (snprintf(backup_path, sizeof(backup_path), "%s.bak", path) >=
+      (int)sizeof(backup_path)) {
+    return false;
+  }
+
+  remove(backup_path);
+
+  if (rename(path, backup_path) != 0) {
+    return false;
+  }
+
+  if (rename(temp_path, path) == 0) {
+    remove(backup_path);
+    return true;
+  }
+
+  rename(backup_path, path);
+  return false;
+}
+
 bool
 pfr_storage_default_path(char* buffer, size_t buffer_size)
 {
@@ -79,5 +108,5 @@ pfr_storage_save(const char* path, const void* data, size_t size)
     return false;
   }
 
-  return rename(temp_path, path) == 0;
+  return pfr_storage_replace_file(temp_path, path);
 }

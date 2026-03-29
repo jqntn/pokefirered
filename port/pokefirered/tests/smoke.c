@@ -630,6 +630,7 @@ static void
 test_storage_roundtrip(void)
 {
   const char* path = "pfr_smoke.sav";
+  const char* temp_path = "pfr_smoke.sav.tmp";
   u8 buffer[64];
   u8 loaded[64];
   size_t i;
@@ -639,11 +640,42 @@ test_storage_roundtrip(void)
   }
 
   remove(path);
+  remove(temp_path);
   assert(pfr_storage_save(path, buffer, sizeof(buffer)));
   memset(loaded, 0, sizeof(loaded));
   assert(pfr_storage_load(path, loaded, sizeof(loaded)));
   assert(memcmp(buffer, loaded, sizeof(buffer)) == 0);
   remove(path);
+  remove(temp_path);
+}
+
+static void
+test_storage_overwrites_existing_file(void)
+{
+  const char* path = "pfr_smoke_overwrite.sav";
+  const char* temp_path = "pfr_smoke_overwrite.sav.tmp";
+  u8 initial[64];
+  u8 updated[64];
+  u8 loaded[64];
+  size_t i;
+
+  for (i = 0; i < sizeof(initial); i++) {
+    initial[i] = (u8)i;
+    updated[i] = (u8)(255U - i);
+  }
+
+  remove(path);
+  remove(temp_path);
+
+  assert(pfr_storage_save(path, initial, sizeof(initial)));
+  assert(pfr_storage_save(path, updated, sizeof(updated)));
+
+  memset(loaded, 0, sizeof(loaded));
+  assert(pfr_storage_load(path, loaded, sizeof(loaded)));
+  assert(memcmp(updated, loaded, sizeof(updated)) == 0);
+
+  remove(path);
+  remove(temp_path);
 }
 
 static void
@@ -815,6 +847,9 @@ main(void)
   fflush(stdout);
   test_storage_roundtrip();
   printf("pfr_smoke: test_storage_roundtrip ok\n");
+  fflush(stdout);
+  test_storage_overwrites_existing_file();
+  printf("pfr_smoke: test_storage_overwrites_existing_file ok\n");
   fflush(stdout);
   test_storage_default_path();
   printf("pfr_smoke: test_storage_default_path ok\n");
