@@ -6,8 +6,9 @@
 #ifndef PFR_STUB_MALLOC_H
 #define PFR_STUB_MALLOC_H
 
-#include "../../../include/malloc.h"
 #include "pfr/core.h"
+
+#include "../../../include/malloc.h"
 
 typedef char pfr_heap_fits_in_ewram[(HEAP_SIZE <= PFR_EWRAM_SIZE) ? 1 : -1];
 
