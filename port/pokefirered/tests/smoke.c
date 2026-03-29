@@ -593,6 +593,56 @@ test_renderer_affine_bg_color_zero_is_transparent(void)
 }
 
 static void
+test_renderer_applies_bg_mosaic(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_top_left;
+  uint32_t expected_top_right;
+  uint32_t expected_bottom_left;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  memset(gPfrVram + 0, 0x11, 32);
+  memset(gPfrVram + 32, 0x22, 32);
+  memset(gPfrVram + 64, 0x33, 32);
+  memset(gPfrVram + 96, 0x44, 32);
+  ((u16*)gPfrPltt)[1] = 0x001F;
+  ((u16*)gPfrPltt)[2] = 0x03E0;
+  ((u16*)gPfrPltt)[3] = 0x7C00;
+  ((u16*)gPfrPltt)[4] = 0x03FF;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31 + 0 * sizeof(u16)) = 0;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31 + 1 * sizeof(u16)) = 1;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31 + 32 * sizeof(u16)) = 2;
+  *(u16*)(gPfrVram + BG_SCREEN_SIZE * 31 + 33 * sizeof(u16)) = 3;
+
+  pfr_renderer_init();
+
+  REG_BG0CNT =
+    BGCNT_SCREENBASE(31) | BGCNT_16COLOR | BGCNT_PRIORITY(0) | BGCNT_MOSAIC;
+  REG_BG0HOFS = 7;
+  REG_BG0VOFS = 7;
+  REG_MOSAIC = 0x0011;
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_BG0_ON;
+
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_top_left = test_rgb555_to_rgba8888(0x001F);
+  expected_top_right = test_rgb555_to_rgba8888(0x03E0);
+  expected_bottom_left = test_rgb555_to_rgba8888(0x7C00);
+  assert(framebuffer[0] == expected_top_left);
+  assert(framebuffer[1] == expected_top_left);
+  assert(framebuffer[DISPLAY_WIDTH] == expected_top_left);
+  assert(framebuffer[DISPLAY_WIDTH + 1] == expected_top_left);
+  assert(framebuffer[2] == expected_top_right);
+  assert(framebuffer[DISPLAY_WIDTH * 2] == expected_bottom_left);
+}
+
+static void
 test_renderer_uses_captured_scanline_window_visibility(void)
 {
   struct OamData* oam = (struct OamData*)gPfrOam;
@@ -945,6 +995,9 @@ main(void)
   fflush(stdout);
   test_renderer_affine_bg_color_zero_is_transparent();
   printf("pfr_smoke: test_renderer_affine_bg_color_zero_is_transparent ok\n");
+  fflush(stdout);
+  test_renderer_applies_bg_mosaic();
+  printf("pfr_smoke: test_renderer_applies_bg_mosaic ok\n");
   fflush(stdout);
   test_renderer_uses_captured_scanline_window_visibility();
   printf(

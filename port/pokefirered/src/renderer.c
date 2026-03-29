@@ -23,6 +23,7 @@ typedef struct PfrWindowState
 typedef struct PfrLineRegs
 {
   u16 dispcnt;
+  u16 mosaic;
   u16 bgcnt[4];
   u16 bghofs[4];
   u16 bgvofs[4];
@@ -200,6 +201,22 @@ pfr_blend_colors(u16 lhs, u16 rhs, int eva, int evb)
   return (u16)(out_r | (out_g << 5) | (out_b << 10));
 }
 
+static void
+pfr_apply_bg_mosaic(int* screen_x, int* screen_y, u16 bgcnt, u16 mosaic)
+{
+  int h_size;
+  int v_size;
+
+  if ((bgcnt & BGCNT_MOSAIC) == 0) {
+    return;
+  }
+
+  h_size = (mosaic & 0x000F) + 1;
+  v_size = ((mosaic >> 4) & 0x000F) + 1;
+  *screen_x -= *screen_x % h_size;
+  *screen_y -= *screen_y % v_size;
+}
+
 static bool
 pfr_coord_in_window_range(int coord, int limit, u16 range)
 {
@@ -267,6 +284,7 @@ pfr_sample_text_bg(const PfrLineRegs* line_regs,
     .layer = 0,
   };
 
+  pfr_apply_bg_mosaic(&screen_x, &screen_y, bgcnt, line_regs->mosaic);
   x = (screen_x + line_regs->bghofs[bg_index]) & (map_width_tiles * 8 - 1);
   y = (screen_y + line_regs->bgvofs[bg_index]) & (map_height_tiles * 8 - 1);
   tile_x = x / 8;
@@ -352,10 +370,10 @@ pfr_sample_affine_bg(const PfrLineRegs* line_regs,
   s32 pd = line_regs->bgpd[slot];
   s32 ref_x = line_regs->bgx[slot];
   s32 ref_y = line_regs->bgy[slot];
-  s32 tex_x = ref_x + pa * screen_x + pb * screen_y;
-  s32 tex_y = ref_y + pc * screen_x + pd * screen_y;
-  int src_x = tex_x >> 8;
-  int src_y = tex_y >> 8;
+  s32 tex_x;
+  s32 tex_y;
+  int src_x;
+  int src_y;
   size_t map_offset;
   int tile_number;
   size_t tile_offset;
@@ -368,6 +386,11 @@ pfr_sample_affine_bg(const PfrLineRegs* line_regs,
     .layer = 0,
   };
 
+  pfr_apply_bg_mosaic(&screen_x, &screen_y, bgcnt, line_regs->mosaic);
+  tex_x = ref_x + pa * screen_x + pb * screen_y;
+  tex_y = ref_y + pc * screen_x + pd * screen_y;
+  src_x = tex_x >> 8;
+  src_y = tex_y >> 8;
   if (wrap != 0) {
     src_x %= map_size;
     src_y %= map_size;
@@ -924,6 +947,7 @@ pfr_renderer_capture_scanline(int scanline)
 
   line_regs = &sLineRegs[scanline];
   line_regs->dispcnt = REG_DISPCNT;
+  line_regs->mosaic = REG_MOSAIC;
   line_regs->bgcnt[0] = REG_BG0CNT;
   line_regs->bgcnt[1] = REG_BG1CNT;
   line_regs->bgcnt[2] = REG_BG2CNT;
@@ -975,6 +999,7 @@ pfr_renderer_render_frame(void)
 
     if (!sLineRegs[y].valid) {
       fallback_line.dispcnt = REG_DISPCNT;
+      fallback_line.mosaic = REG_MOSAIC;
       fallback_line.bgcnt[0] = REG_BG0CNT;
       fallback_line.bgcnt[1] = REG_BG1CNT;
       fallback_line.bgcnt[2] = REG_BG2CNT;
