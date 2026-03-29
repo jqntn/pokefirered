@@ -4,9 +4,9 @@ Platform abstraction layer for Pokémon FireRed that bridges decompiled game cod
 
 ## What This Fork Is
 
-This fork is focused on building a native desktop runtime around the decompiled FireRed codebase instead of treating the repository only as a ROM decompilation project.
+This fork builds a native desktop runtime around the decompiled FireRed codebase.
 
-The goal is to keep original game logic, data, and flow intact while replacing the GBA-facing platform pieces with a host implementation for:
+It keeps original game logic, data, and flow intact while replacing GBA-facing platform pieces with host implementations for:
 
 - rendering
 - input
@@ -16,13 +16,13 @@ The goal is to keep original game logic, data, and flow intact while replacing t
 - runtime boot flow
 - automated testing
 
-In practice, this means the native layer acts as a PAL between the original game code and a desktop executable, with fidelity to GBA behavior as the bar for correctness.
+The native layer acts as a PAL between the original game code and a desktop executable, with fidelity to GBA behavior as the bar for correctness.
 
 ## Current Scope
 
 The native work lives under `port/pokefirered`.
 
-Current desktop runtime work includes:
+Current work includes:
 
 - booting through the original startup sequence
 - native runtime modes for `game`, `demo`, and `sandbox`
@@ -50,11 +50,11 @@ cmake --preset linux-clang-debug
 cmake --build out/build/linux-clang-debug
 ```
 
-Other available presets include `x64-release`, `linux-gcc-debug`, and `linux-gcc-release`.
+Other presets: `x64-release`, `linux-clang-release`, `linux-gcc-debug`, `linux-gcc-release`.
 
 ## Running
 
-From the native build directory, run:
+From the native build directory:
 
 ```text
 pokefirered [--mode game|demo|sandbox] [--headless]
@@ -71,7 +71,7 @@ Examples:
 
 ## Controls
 
-These controls apply to the current desktop build.
+Current desktop controls:
 
 ### Keyboard
 
@@ -95,7 +95,7 @@ These controls apply to the current desktop build.
 
 ## Testing
 
-Example native test flow:
+Run the native test suite with:
 
 ```powershell
 cd port/pokefirered
@@ -103,7 +103,7 @@ cmake --build out/build/x64-debug --target test
 ctest --test-dir out/build/x64-debug --output-on-failure
 ```
 
-The repository also includes a `format-native` CMake target for applying the native port formatting rules.
+Formatting: `cmake --build out/build/x64-debug --target format-native`
 
 ## Repository Notes
 
