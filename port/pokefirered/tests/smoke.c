@@ -318,6 +318,62 @@ test_renderer_skips_affine_erase_sprites(void)
 }
 
 static void
+test_renderer_samples_affine_double_sprites(void)
+{
+  struct OamData* oam = (struct OamData*)gPfrOam;
+  const uint32_t* framebuffer;
+  uint32_t expected_backdrop;
+  uint32_t expected_left;
+  uint32_t expected_right;
+  int row;
+
+  memset(gPfrIo, 0, PFR_IO_SIZE);
+  memset(gPfrPltt, 0, PFR_PLTT_SIZE);
+  memset(gPfrVram, 0, PFR_VRAM_SIZE);
+  memset(gPfrOam, 0, PFR_OAM_SIZE);
+  pfr_hide_all_test_sprites(oam);
+
+  ((u16*)gPfrPltt)[0] = 0x0400;
+  ((u16*)gPfrPltt)[0x100 + 1] = 0x001F;
+  ((u16*)gPfrPltt)[0x100 + 2] = 0x03E0;
+  for (row = 0; row < 8; row++) {
+    gPfrVram[0x10000 + row * 4 + 0] = 0x11;
+    gPfrVram[0x10000 + row * 4 + 1] = 0x11;
+    gPfrVram[0x10000 + row * 4 + 2] = 0x22;
+    gPfrVram[0x10000 + row * 4 + 3] = 0x22;
+  }
+
+  oam[0].affineMode = ST_OAM_AFFINE_DOUBLE;
+  oam[0].objMode = ST_OAM_OBJ_NORMAL;
+  oam[0].mosaic = FALSE;
+  oam[0].bpp = ST_OAM_4BPP;
+  oam[0].shape = ST_OAM_SQUARE;
+  oam[0].x = 0;
+  oam[0].y = 0;
+  oam[0].matrixNum = 0;
+  oam[0].size = ST_OAM_SIZE_0;
+  oam[0].tileNum = 0;
+  oam[0].priority = 0;
+  oam[0].paletteNum = 0;
+  oam[0].affineParam = 0x0080;
+  oam[1].affineParam = 0x0000;
+  oam[2].affineParam = 0x0000;
+  oam[3].affineParam = 0x0080;
+
+  pfr_renderer_init();
+
+  REG_DISPCNT = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
+  pfr_renderer_render_frame();
+  framebuffer = pfr_renderer_framebuffer();
+  expected_backdrop = test_rgb555_to_rgba8888(0x0400);
+  expected_left = test_rgb555_to_rgba8888(0x001F);
+  expected_right = test_rgb555_to_rgba8888(0x03E0);
+  assert(framebuffer[8 * DISPLAY_WIDTH + 2] == expected_left);
+  assert(framebuffer[8 * DISPLAY_WIDTH + 13] == expected_right);
+  assert(framebuffer[8 * DISPLAY_WIDTH + 16] == expected_backdrop);
+}
+
+static void
 test_renderer_respects_forced_blank(void)
 {
   struct OamData* oam = (struct OamData*)gPfrOam;
@@ -737,6 +793,9 @@ main(void)
   fflush(stdout);
   test_renderer_skips_affine_erase_sprites();
   printf("pfr_smoke: test_renderer_skips_affine_erase_sprites ok\n");
+  fflush(stdout);
+  test_renderer_samples_affine_double_sprites();
+  printf("pfr_smoke: test_renderer_samples_affine_double_sprites ok\n");
   fflush(stdout);
   test_renderer_respects_forced_blank();
   printf("pfr_smoke: test_renderer_respects_forced_blank ok\n");

@@ -46,6 +46,8 @@ typedef struct PfrLineRegs
 
 static uint32_t sFramebuffer[PFR_SCREEN_WIDTH * PFR_SCREEN_HEIGHT];
 static PfrLineRegs sLineRegs[DISPLAY_HEIGHT];
+static u8 sScanlineSpriteCounts[DISPLAY_HEIGHT];
+static u8 sScanlineSpriteIndices[DISPLAY_HEIGHT][128];
 
 enum
 {
@@ -451,29 +453,22 @@ pfr_sample_backgrounds(int screen_x,
 }
 
 static bool
-pfr_sample_sprite_texel(const struct OamData* entry,
-                        const u16* palette,
-                        bool one_d_mapping,
-                        int screen_x,
-                        int screen_y,
-                        u16* out_color)
+pfr_get_sprite_bounds(const struct OamData* entry,
+                      int* out_origin_x,
+                      int* out_origin_y,
+                      int* out_width,
+                      int* out_height,
+                      int* out_display_width,
+                      int* out_display_height)
 {
   int shape = entry->shape;
   int size = entry->size;
   int width;
   int height;
+  int display_width;
+  int display_height;
   int origin_x;
   int origin_y;
-  int local_x;
-  int local_y;
-  int tile_num;
-  int tile_stride;
-  int tile_x;
-  int tile_y;
-  int pixel_x;
-  int pixel_y;
-  size_t tile_offset;
-  uint8_t color_index;
 
   if (shape > ST_OAM_V_RECTANGLE || size > ST_OAM_SIZE_3 ||
       entry->affineMode == ST_OAM_AFFINE_ERASE) {
@@ -482,6 +477,14 @@ pfr_sample_sprite_texel(const struct OamData* entry,
 
   width = sSpriteDimensions[shape][size][0];
   height = sSpriteDimensions[shape][size][1];
+  display_width = width;
+  display_height = height;
+
+  if ((entry->affineMode & ST_OAM_AFFINE_DOUBLE_MASK) != 0) {
+    display_width *= 2;
+    display_height *= 2;
+  }
+
   origin_x = (int)entry->x;
   origin_y = (int)entry->y;
 
@@ -493,15 +496,150 @@ pfr_sample_sprite_texel(const struct OamData* entry,
     origin_y -= 256;
   }
 
+  *out_origin_x = origin_x;
+  *out_origin_y = origin_y;
+  *out_width = width;
+  *out_height = height;
+  *out_display_width = display_width;
+  *out_display_height = display_height;
+  return true;
+}
+
+static void
+pfr_build_scanline_sprite_lists(void)
+{
+  const struct OamData* oam = (const struct OamData*)gPfrOam;
+  int sprite_index;
+
+  memset(sScanlineSpriteCounts, 0, sizeof(sScanlineSpriteCounts));
+  for (sprite_index = 0; sprite_index < 128; sprite_index++) {
+    const struct OamData* entry = &oam[sprite_index];
+    int origin_x;
+    int origin_y;
+    int width;
+    int height;
+    int display_width;
+    int display_height;
+    int start_y;
+    int end_y;
+    int y;
+
+    if (!pfr_get_sprite_bounds(entry,
+                               &origin_x,
+                               &origin_y,
+                               &width,
+                               &height,
+                               &display_width,
+                               &display_height)) {
+      continue;
+    }
+
+    if (origin_x >= DISPLAY_WIDTH || origin_x + display_width <= 0 ||
+        origin_y >= DISPLAY_HEIGHT || origin_y + display_height <= 0) {
+      continue;
+    }
+
+    start_y = origin_y < 0 ? 0 : origin_y;
+    end_y = origin_y + display_height > DISPLAY_HEIGHT
+              ? DISPLAY_HEIGHT
+              : origin_y + display_height;
+
+    for (y = start_y; y < end_y; y++) {
+      u8 count = sScanlineSpriteCounts[y];
+
+      if (count < 128) {
+        sScanlineSpriteIndices[y][count] = (u8)sprite_index;
+        sScanlineSpriteCounts[y] = count + 1;
+      }
+    }
+  }
+}
+
+static bool
+pfr_get_sprite_matrix(const struct OamData* oam,
+                      u8 matrix_num,
+                      s16* out_pa,
+                      s16* out_pb,
+                      s16* out_pc,
+                      s16* out_pd)
+{
+  size_t base_index;
+
+  if (matrix_num >= 32) {
+    return false;
+  }
+
+  base_index = (size_t)matrix_num * 4U;
+  *out_pa = (s16)oam[base_index + 0].affineParam;
+  *out_pb = (s16)oam[base_index + 1].affineParam;
+  *out_pc = (s16)oam[base_index + 2].affineParam;
+  *out_pd = (s16)oam[base_index + 3].affineParam;
+  return true;
+}
+
+static bool
+pfr_sample_sprite_texel(const struct OamData* entry,
+                        const struct OamData* oam,
+                        const u16* palette,
+                        bool one_d_mapping,
+                        int screen_x,
+                        int screen_y,
+                        u16* out_color)
+{
+  int width;
+  int height;
+  int display_width;
+  int display_height;
+  int origin_x;
+  int origin_y;
+  int local_x;
+  int local_y;
+  int source_x;
+  int source_y;
+  int tile_num;
+  int tile_stride;
+  int tile_x;
+  int tile_y;
+  int pixel_x;
+  int pixel_y;
+  s16 pa;
+  s16 pb;
+  s16 pc;
+  s16 pd;
+  size_t tile_offset;
+  uint8_t color_index;
+
+  if (!pfr_get_sprite_bounds(entry,
+                             &origin_x,
+                             &origin_y,
+                             &width,
+                             &height,
+                             &display_width,
+                             &display_height)) {
+    return false;
+  }
+
   if (screen_x < origin_x || screen_y < origin_y ||
-      screen_x >= origin_x + width || screen_y >= origin_y + height) {
+      screen_x >= origin_x + display_width ||
+      screen_y >= origin_y + display_height) {
     return false;
   }
 
   local_x = screen_x - origin_x;
   local_y = screen_y - origin_y;
 
-  if (entry->affineMode == ST_OAM_AFFINE_OFF) {
+  if ((entry->affineMode & ST_OAM_AFFINE_ON_MASK) != 0) {
+    if (!pfr_get_sprite_matrix(oam, (u8)entry->matrixNum, &pa, &pb, &pc, &pd)) {
+      return false;
+    }
+
+    local_x -= display_width / 2;
+    local_y -= display_height / 2;
+    source_x = ((int)pa * local_x + (int)pb * local_y) >> 8;
+    source_y = ((int)pc * local_x + (int)pd * local_y) >> 8;
+    local_x = source_x + width / 2;
+    local_y = source_y + height / 2;
+  } else {
     if ((entry->matrixNum & ST_OAM_HFLIP) != 0) {
       local_x = width - 1 - local_x;
     }
@@ -509,6 +647,10 @@ pfr_sample_sprite_texel(const struct OamData* entry,
     if ((entry->matrixNum & ST_OAM_VFLIP) != 0) {
       local_y = height - 1 - local_y;
     }
+  }
+
+  if (local_x < 0 || local_y < 0 || local_x >= width || local_y >= height) {
+    return false;
   }
 
   tile_num = entry->tileNum;
@@ -571,14 +713,17 @@ pfr_pixel_in_obj_window(int screen_x, int screen_y, u16 dispcnt)
 {
   const struct OamData* oam = (const struct OamData*)gPfrOam;
   bool one_d_mapping = (dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
-  int sprite_index;
+  u8 sprite_count;
+  u8 sprite_order;
 
   if ((dispcnt & (DISPCNT_OBJ_ON | DISPCNT_OBJWIN_ON)) !=
       (DISPCNT_OBJ_ON | DISPCNT_OBJWIN_ON)) {
     return false;
   }
 
-  for (sprite_index = 0; sprite_index < 128; sprite_index++) {
+  sprite_count = sScanlineSpriteCounts[screen_y];
+  for (sprite_order = 0; sprite_order < sprite_count; sprite_order++) {
+    int sprite_index = sScanlineSpriteIndices[screen_y][sprite_order];
     const struct OamData* entry = &oam[sprite_index];
 
     if (entry->objMode != ST_OAM_OBJ_WINDOW) {
@@ -586,6 +731,7 @@ pfr_pixel_in_obj_window(int screen_x, int screen_y, u16 dispcnt)
     }
 
     if (pfr_sample_sprite_texel(entry,
+                                oam,
                                 (const u16*)gPfrPltt,
                                 one_d_mapping,
                                 screen_x,
@@ -682,15 +828,18 @@ pfr_sample_sprite_pixel(int screen_x,
   const struct OamData* oam = (const struct OamData*)gPfrOam;
   const u16* palette = (const u16*)gPfrPltt;
   bool one_d_mapping = (dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
+  u8 sprite_count;
+  u8 sprite_order;
   PfrPixelSample best = { false, 4, 0xFF, 0 };
-  int sprite_index;
 
   if ((dispcnt & DISPCNT_OBJ_ON) == 0 ||
       (visible_layers & PFR_LAYER_OBJ) == 0) {
     return best;
   }
 
-  for (sprite_index = 0; sprite_index < 128; sprite_index++) {
+  sprite_count = sScanlineSpriteCounts[screen_y];
+  for (sprite_order = 0; sprite_order < sprite_count; sprite_order++) {
+    int sprite_index = sScanlineSpriteIndices[screen_y][sprite_order];
     const struct OamData* entry = &oam[sprite_index];
     PfrPixelSample sample;
 
@@ -699,8 +848,13 @@ pfr_sample_sprite_pixel(int screen_x,
       continue;
     }
 
-    if (!pfr_sample_sprite_texel(
-          entry, palette, one_d_mapping, screen_x, screen_y, &sample.color)) {
+    if (!pfr_sample_sprite_texel(entry,
+                                 oam,
+                                 palette,
+                                 one_d_mapping,
+                                 screen_x,
+                                 screen_y,
+                                 &sample.color)) {
       continue;
     }
 
@@ -788,6 +942,8 @@ pfr_renderer_render_frame(void)
 {
   int x;
   int y;
+
+  pfr_build_scanline_sprite_lists();
 
   for (y = 0; y < DISPLAY_HEIGHT; y++) {
     PfrLineRegs fallback_line = { 0 };

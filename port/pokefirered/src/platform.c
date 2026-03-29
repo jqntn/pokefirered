@@ -10,6 +10,8 @@
 #include "pfr/core.h"
 
 #define PFR_MAX_AUTO_START_FRAMES 8
+#define PFR_GBA_FRAME_SECONDS (280896.0 / 16777216.0)
+#define PFR_MAX_FRAME_PACING_DRIFT 4.0
 
 typedef struct PfrOptions
 {
@@ -364,8 +366,9 @@ pfr_run_windowed(const PfrOptions* options)
   AudioStream stream;
   PfrAudioState audio_state;
   uint32_t frame_index = 0;
+  double next_frame_time;
 
-  SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+  SetConfigFlags(FLAG_WINDOW_RESIZABLE);
   InitWindow(DISPLAY_WIDTH * 4, DISPLAY_HEIGHT * 4, "pokefirered native PAL");
   SetWindowMinSize(DISPLAY_WIDTH * 2, DISPLAY_HEIGHT * 2);
   SetExitKey(0);
@@ -378,8 +381,15 @@ pfr_run_windowed(const PfrOptions* options)
   stream = LoadAudioStream(PFR_DEFAULT_AUDIO_SAMPLE_RATE, 16, 1);
   pfr_audio_reset(&audio_state);
   PlayAudioStream(stream);
+  next_frame_time = GetTime();
 
   while (!WindowShouldClose()) {
+    double now = GetTime();
+
+    if (now < next_frame_time) {
+      WaitTime(next_frame_time - now);
+    }
+
     pfr_core_set_keys(
       pfr_keys_for_frame(options, frame_index, pfr_poll_keys()));
     pfr_core_run_frame();
@@ -399,6 +409,13 @@ pfr_run_windowed(const PfrOptions* options)
     EndDrawing();
 
     frame_index++;
+    next_frame_time += PFR_GBA_FRAME_SECONDS;
+
+    now = GetTime();
+    if (now >
+        next_frame_time + PFR_GBA_FRAME_SECONDS * PFR_MAX_FRAME_PACING_DRIFT) {
+      next_frame_time = now;
+    }
 
     if (options->frame_limit != 0 && frame_index >= options->frame_limit) {
       break;
