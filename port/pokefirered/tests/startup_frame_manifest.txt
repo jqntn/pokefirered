@@ -2,4 +2,4 @@
 copyright|30|61bb0d71
 intro_effect|720|5cbe7809
 title_reveal|1680|e3e18aee
-title_pre_menu|1800|5978206e
+title_pre_menu|1800|1e13fac5

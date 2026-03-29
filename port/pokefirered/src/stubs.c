@@ -395,7 +395,6 @@ LoadWordFromTwoHalfwords(u16* src, u32* dest)
   *dest = src[0] | ((s16)src[1] << 16);
 }
 
-u8 gHeap[0x1C000]; // 112KB buffer as per original game
 u16 gSaveFileStatus = 0;
 u16 gBattle_BG0_X = 0;
 u16 gBattle_BG0_Y = 0;
