@@ -59,39 +59,81 @@ pfr_scripted_input_parse_u32(const char* text, uint32_t* value)
   return true;
 }
 
+static int
+pfr_scripted_input_ascii_casecmp(const char* lhs, const char* rhs)
+{
+  while (*lhs != '\0' && *rhs != '\0') {
+    int lhs_char = tolower((unsigned char)*lhs);
+    int rhs_char = tolower((unsigned char)*rhs);
+
+    if (lhs_char != rhs_char) {
+      return lhs_char - rhs_char;
+    }
+
+    lhs++;
+    rhs++;
+  }
+
+  return tolower((unsigned char)*lhs) - tolower((unsigned char)*rhs);
+}
+
+static bool
+pfr_scripted_input_is_key_delimiter(char ch)
+{
+  return ch == '+' || ch == ',' || ch == ' ' || ch == '\t';
+}
+
 static bool
 pfr_scripted_input_parse_named_keys(const char* text, uint16_t* keys)
 {
   char buffer[PFR_SCRIPTED_INPUT_LINE_BUFFER_SIZE];
-  char* context = NULL;
-  char* token;
+  char* token = NULL;
+  char* cursor = NULL;
 
   snprintf(buffer, sizeof(buffer), "%s", text);
   *keys = 0;
 
-  for (token = strtok_s(buffer, "+, \t", &context); token != NULL;
-       token = strtok_s(NULL, "+, \t", &context)) {
-    if (_stricmp(token, "A") == 0) {
+  cursor = buffer;
+  while (*cursor != '\0') {
+    while (*cursor != '\0' && pfr_scripted_input_is_key_delimiter(*cursor)) {
+      cursor++;
+    }
+
+    if (*cursor == '\0') {
+      break;
+    }
+
+    token = cursor;
+    while (*cursor != '\0' && !pfr_scripted_input_is_key_delimiter(*cursor)) {
+      cursor++;
+    }
+
+    if (*cursor != '\0') {
+      *cursor = '\0';
+      cursor++;
+    }
+
+    if (pfr_scripted_input_ascii_casecmp(token, "A") == 0) {
       *keys |= A_BUTTON;
-    } else if (_stricmp(token, "B") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "B") == 0) {
       *keys |= B_BUTTON;
-    } else if (_stricmp(token, "SELECT") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "SELECT") == 0) {
       *keys |= SELECT_BUTTON;
-    } else if (_stricmp(token, "START") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "START") == 0) {
       *keys |= START_BUTTON;
-    } else if (_stricmp(token, "RIGHT") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "RIGHT") == 0) {
       *keys |= DPAD_RIGHT;
-    } else if (_stricmp(token, "LEFT") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "LEFT") == 0) {
       *keys |= DPAD_LEFT;
-    } else if (_stricmp(token, "UP") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "UP") == 0) {
       *keys |= DPAD_UP;
-    } else if (_stricmp(token, "DOWN") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "DOWN") == 0) {
       *keys |= DPAD_DOWN;
-    } else if (_stricmp(token, "R") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "R") == 0) {
       *keys |= R_BUTTON;
-    } else if (_stricmp(token, "L") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "L") == 0) {
       *keys |= L_BUTTON;
-    } else if (_stricmp(token, "NONE") == 0) {
+    } else if (pfr_scripted_input_ascii_casecmp(token, "NONE") == 0) {
       continue;
     } else {
       return false;
