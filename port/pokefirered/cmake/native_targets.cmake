@@ -46,6 +46,7 @@ function(pfr_define_native_runtime_targets)
       src/gpu_regs.c
       src/main_runtime.c
       src/renderer.c
+      src/scripted_input.c
       src/storage.c
       src/sandbox.c
       src/stubs.c

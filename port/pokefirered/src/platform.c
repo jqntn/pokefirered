@@ -9,8 +9,8 @@
 
 #include "pfr/audio.h"
 #include "pfr/core.h"
+#include "pfr/scripted_input.h"
 
-#define PFR_MAX_AUTO_START_FRAMES 8
 #define PFR_GBA_FRAME_SECONDS (280896.0 / 16777216.0)
 #define PFR_MAX_FRAME_PACING_DRIFT 4.0
 #define PFR_HOST_AUDIO_SAMPLE_RATE 48000
@@ -26,8 +26,7 @@ typedef struct PfrOptions
   bool quit_on_title;
   bool quit_on_main_menu;
   uint32_t frame_limit;
-  uint32_t auto_press_start_frames[PFR_MAX_AUTO_START_FRAMES];
-  uint32_t auto_press_start_frame_count;
+  PfrScriptedInput scripted_input;
   const char* save_path;
   PfrMode mode;
 } PfrOptions;
@@ -54,7 +53,8 @@ pfr_print_usage(const char* program_name)
   fprintf(stderr,
           "usage: %s [--mode game|demo|sandbox] [--headless]\n"
           "       [--frames N] [--quit-on-title] [--quit-on-main-menu]\n"
-          "       [--auto-press-start-frame N]... [--save-path PATH]\n",
+          "       [--auto-press-start-frame N]... [--input-manifest PATH]\n"
+          "       [--save-path PATH]\n",
           program_name);
 }
 
@@ -88,7 +88,7 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
   options->quit_on_title = false;
   options->quit_on_main_menu = false;
   options->frame_limit = 0;
-  options->auto_press_start_frame_count = 0;
+  pfr_scripted_input_init(&options->scripted_input);
   options->save_path = NULL;
   options->mode = PFR_MODE_GAME;
 
@@ -117,14 +117,24 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
         return false;
       }
 
-      if (options->auto_press_start_frame_count >= PFR_MAX_AUTO_START_FRAMES) {
-        fprintf(stderr, "too many --auto-press-start-frame values\n");
+      if (!pfr_scripted_input_append(
+            &options->scripted_input, frame, START_BUTTON, NULL, 0)) {
+        fprintf(stderr, "failed to append scripted input\n");
+        return false;
+      }
+    } else if (strcmp(argv[i], "--input-manifest") == 0) {
+      char error[256];
+
+      if (i + 1 >= argc) {
+        fprintf(stderr, "missing --input-manifest value\n");
         return false;
       }
 
-      options
-        ->auto_press_start_frames[options->auto_press_start_frame_count++] =
-        frame;
+      if (!pfr_scripted_input_load_manifest(
+            &options->scripted_input, argv[++i], error, sizeof(error))) {
+        fprintf(stderr, "%s\n", error);
+        return false;
+      }
     } else if (strcmp(argv[i], "--save-path") == 0) {
       if (i + 1 >= argc) {
         fprintf(stderr, "missing --save-path value\n");
@@ -264,16 +274,8 @@ pfr_keys_for_frame(const PfrOptions* options,
                    uint32_t frame_index,
                    uint16_t keys)
 {
-  uint32_t i;
-
-  for (i = 0; i < options->auto_press_start_frame_count; i++) {
-    if (frame_index == options->auto_press_start_frames[i]) {
-      keys |= START_BUTTON;
-      break;
-    }
-  }
-
-  return keys;
+  return keys | pfr_scripted_input_keys_for_frame(&options->scripted_input,
+                                                  frame_index);
 }
 
 static int
@@ -358,6 +360,12 @@ pfr_run_headless(const PfrOptions* options)
   }
 
   return 0;
+}
+
+static void
+pfr_free_options(PfrOptions* options)
+{
+  pfr_scripted_input_free(&options->scripted_input);
 }
 
 static int
@@ -485,5 +493,6 @@ pfr_platform_main(int argc, char** argv)
 
   pfr_audio_shutdown();
   pfr_core_shutdown();
+  pfr_free_options(&options);
   return result;
 }

@@ -3,6 +3,8 @@
 #include "pfr/core.h"
 #include "pfr/stubs.h"
 
+#include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -23,21 +25,50 @@ enum
   PFR_AUDIO_FADE_STEP = 16,
   PFR_CRY_DEFAULT_PITCH = 15360,
   PFR_CRY_DEFAULT_LENGTH = 140,
+  PFR_TRACK_RUNTIME_STACK_DEPTH = 3,
 };
+
+typedef struct PfrRuntimeNote
+{
+  const PfrAudioVoice* voice;
+  const PfrAudioSample* sample;
+  double source_pos;
+  double source_step;
+  double phase;
+  double gain;
+  int pan;
+  int remaining_ticks;
+  int release_frames_total;
+  int release_frames_left;
+  float held_sample;
+  uint32_t noise_state;
+  bool active;
+  bool released;
+} PfrRuntimeNote;
+
+typedef struct PfrTrackRuntime
+{
+  struct MusicPlayerTrack* track;
+  const PfrAudioTrackAsset* asset;
+  PfrRuntimeNote note;
+} PfrTrackRuntime;
 
 typedef struct PfrSongPlayer
 {
   struct MusicPlayerInfo* info;
-  const PfrAudioClipAsset* asset;
-  uint32_t frame_index;
+  struct MusicPlayerTrack* tracks;
+  uint8_t track_capacity;
+  const PfrAudioSongAsset* asset;
+  PfrTrackRuntime runtime[MAX_MUSICPLAYER_TRACKS];
+  double frames_until_tick;
   uint16_t volume;
   uint16_t fade_level;
   uint16_t fade_interval;
   uint16_t fade_counter;
-  int8_t pan;
-  bool8 paused;
-  bool8 temporary_fade;
-  bool8 fade_in;
+  bool paused;
+  bool stopped;
+  bool temporary_fade;
+  bool fade_in;
 } PfrSongPlayer;
 
 typedef struct PfrCryRuntime
@@ -53,9 +84,21 @@ typedef struct PfrCryRuntime
   uint8_t priority;
   int8_t pan;
   int8_t chorus;
-  bool8 reverse;
-  bool8 active;
+  bool reverse;
+  bool active;
 } PfrCryRuntime;
+
+static const uint8_t sPfrClockTable[] = {
+  0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+  0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x1C,
+  0x1E, 0x20, 0x24, 0x28, 0x2A, 0x2C, 0x30, 0x34, 0x36, 0x38, 0x3C, 0x40, 0x42,
+  0x44, 0x48, 0x4C, 0x4E, 0x50, 0x54, 0x58, 0x5A, 0x5C, 0x60,
+};
+
+static struct MusicPlayerTrack sMPlayTrackBgm[10];
+static struct MusicPlayerTrack sMPlayTrackSe1[3];
+static struct MusicPlayerTrack sMPlayTrackSe2[9];
+static struct MusicPlayerTrack sMPlayTrackSe3[1];
 
 struct MusicPlayerInfo gMPlayInfo_BGM = { 0 };
 struct MusicPlayerInfo gMPlayInfo_SE1 = { 0 };
@@ -68,7 +111,34 @@ struct PokemonCrySong gPokemonCrySong = { 0 };
 struct PokemonCrySong gPokemonCrySongs[MAX_POKEMON_CRIES] = { 0 };
 struct MusicPlayerInfo gPokemonCryMusicPlayers[MAX_POKEMON_CRIES] = { 0 };
 struct MusicPlayerTrack gPokemonCryTracks[MAX_POKEMON_CRIES * 2] = { 0 };
-const struct PokemonCrySong gPokemonCrySongTemplate = { 0 };
+const struct PokemonCrySong gPokemonCrySongTemplate = { 1,
+                                                        0,
+                                                        255,
+                                                        0,
+                                                        NULL,
+                                                        { NULL, NULL },
+                                                        0,
+                                                        0xC8,
+                                                        C_V,
+                                                        0xB2,
+                                                        0,
+                                                        0xC8,
+                                                        (u8)(C_V + 16),
+                                                        { 0xBD, 0 },
+                                                        0xBE,
+                                                        127,
+                                                        { 0xCD, 0x0D },
+                                                        0,
+                                                        { 0xCD, 0x07 },
+                                                        0,
+                                                        0xBF,
+                                                        C_V,
+                                                        0xCF,
+                                                        60,
+                                                        127,
+                                                        { 0xCD, 0x0C },
+                                                        60,
+                                                        { 0xCE, 0xB1 } };
 char SoundMainRAM[1] = { 0 };
 char gNumMusicPlayers[1] = { 4 };
 char gMaxLines[1] = { 5 };
@@ -76,58 +146,77 @@ u8 gDisableMapMusicChangeOnMapLoad = 0;
 u8 gDisableHelpSystemVolumeReduce = 0;
 u32 gBattleTypeFlags = 0;
 
+const struct MusicPlayer gMPlayTable[] = {
+  { &gMPlayInfo_BGM, sMPlayTrackBgm, 10, 0 },
+  { &gMPlayInfo_SE1, sMPlayTrackSe1, 3, 1 },
+  { &gMPlayInfo_SE2, sMPlayTrackSe2, 9, 1 },
+  { &gMPlayInfo_SE3, sMPlayTrackSe3, 1, 0 },
+};
+
 static PfrSongPlayer sSongPlayers[PFR_AUDIO_PLAYER_COUNT] = {
   { &gMPlayInfo_BGM,
+    sMPlayTrackBgm,
+    10,
     NULL,
-    0,
+    { 0 },
+    0.0,
     PFR_AUDIO_FULL_VOLUME,
     PFR_AUDIO_FULL_VOLUME,
     0,
     0,
-    0,
-    FALSE,
-    FALSE,
-    FALSE },
+    false,
+    true,
+    false,
+    false },
   { &gMPlayInfo_SE1,
+    sMPlayTrackSe1,
+    3,
     NULL,
-    0,
+    { 0 },
+    0.0,
     PFR_AUDIO_FULL_VOLUME,
     PFR_AUDIO_FULL_VOLUME,
     0,
     0,
-    0,
-    FALSE,
-    FALSE,
-    FALSE },
+    false,
+    true,
+    false,
+    false },
   { &gMPlayInfo_SE2,
+    sMPlayTrackSe2,
+    9,
     NULL,
-    0,
+    { 0 },
+    0.0,
     PFR_AUDIO_FULL_VOLUME,
     PFR_AUDIO_FULL_VOLUME,
     0,
     0,
-    0,
-    FALSE,
-    FALSE,
-    FALSE },
+    false,
+    true,
+    false,
+    false },
   { &gMPlayInfo_SE3,
+    sMPlayTrackSe3,
+    1,
     NULL,
-    0,
+    { 0 },
+    0.0,
     PFR_AUDIO_FULL_VOLUME,
     PFR_AUDIO_FULL_VOLUME,
     0,
     0,
-    0,
-    FALSE,
-    FALSE,
-    FALSE },
+    false,
+    true,
+    false,
+    false },
 };
 
 static PfrCryRuntime sCryRuntime;
 static bool8 sVSyncEnabled;
 static bool8 sCryStereo;
-static u16 sCurrentBgmSongId;
-static u16 sPendingSeSongId;
+static uint16_t sCurrentBgmSongId;
+static uint16_t sPendingSeSongId;
 static bool8 sPendingSe;
 static bool8 sPendingCry;
 static uint16_t sCryPitch;
@@ -137,35 +226,6 @@ static uint8_t sCryVolume;
 static uint8_t sCryPriority;
 static int8_t sCryPan;
 static int8_t sCryChorus;
-
-static void
-pfr_audio_runtime_refresh_player(PfrSongPlayer* player);
-
-static void
-pfr_audio_runtime_stop_song_player(PfrSongPlayer* player)
-{
-  player->asset = NULL;
-  player->frame_index = 0;
-  player->fade_level = PFR_AUDIO_FULL_VOLUME;
-  player->fade_interval = 0;
-  player->fade_counter = 0;
-  player->temporary_fade = FALSE;
-  player->fade_in = FALSE;
-  player->paused = FALSE;
-  pfr_audio_runtime_refresh_player(player);
-}
-
-static void
-pfr_audio_runtime_stop_cry(void)
-{
-  sCryRuntime.asset = NULL;
-  sCryRuntime.frame_position = 0.0;
-  sCryRuntime.frame_step = 1.0;
-  sCryRuntime.frame_limit = 0;
-  sCryRuntime.frames_played = 0;
-  sCryRuntime.active = FALSE;
-  gPokemonCryMusicPlayers[0].status = 0;
-}
 
 static int
 pfr_audio_runtime_clamp_pan(int pan)
@@ -196,22 +256,125 @@ pfr_audio_runtime_clamp_sample(int32_t sample)
 }
 
 static void
-pfr_audio_runtime_pan_gains(int pan, int32_t* left_gain, int32_t* right_gain)
+pfr_audio_runtime_pan_gains(int pan, double gain, double* left, double* right)
 {
   int clamped = pfr_audio_runtime_clamp_pan(pan);
 
-  *left_gain =
-    clamped > 0 ? (PFR_AUDIO_FULL_VOLUME - clamped * 4) : PFR_AUDIO_FULL_VOLUME;
-  *right_gain =
-    clamped < 0 ? (PFR_AUDIO_FULL_VOLUME + clamped * 4) : PFR_AUDIO_FULL_VOLUME;
+  *right = ((double)(clamped + 64) / 127.0) * gain;
+  *left = ((double)(63 - clamped) / 127.0) * gain;
+}
 
-  if (*left_gain < 0) {
-    *left_gain = 0;
+static void
+pfr_audio_runtime_clear_note(PfrRuntimeNote* note)
+{
+  memset(note, 0, sizeof(*note));
+}
+
+static void
+pfr_audio_runtime_release_note(PfrRuntimeNote* note)
+{
+  note->released = true;
+}
+
+static void
+pfr_audio_runtime_stop_track_runtime(PfrTrackRuntime* runtime)
+{
+  if (runtime->track != NULL) {
+    memset(runtime->track, 0, sizeof(*runtime->track));
+  }
+  pfr_audio_runtime_clear_note(&runtime->note);
+}
+
+static void
+pfr_audio_runtime_refresh_player(PfrSongPlayer* player)
+{
+  uint32_t status = 0;
+  uint8_t track_count = 0;
+
+  player->info->ident = ID_NUMBER;
+  player->info->songHeader =
+    (struct SongHeader*)(player->asset != NULL ? player->asset->song_header
+                                               : NULL);
+  player->info->fadeOI = player->fade_interval;
+  player->info->fadeOC = player->fade_counter;
+  player->info->fadeOV = player->fade_level;
+  player->info->tracks = player->tracks;
+  player->info->memAccArea = gMPlayMemAccArea;
+  player->info->tone = NULL;
+
+  if (player->asset != NULL) {
+    track_count = player->asset->track_count;
+    player->info->priority = player->asset->priority;
+  } else {
+    player->info->priority = 0;
   }
 
-  if (*right_gain < 0) {
-    *right_gain = 0;
+  player->info->trackCount = track_count;
+
+  if (player->asset != NULL && !player->stopped) {
+    status |= MUSICPLAYER_STATUS_TRACK;
   }
+
+  if (player->paused) {
+    status |= MUSICPLAYER_STATUS_PAUSE;
+  }
+
+  player->info->status = status;
+}
+
+static void
+pfr_audio_runtime_full_stop_player(PfrSongPlayer* player)
+{
+  size_t i;
+
+  player->paused = false;
+  player->stopped = true;
+
+  for (i = 0; i < player->track_capacity; i++) {
+    pfr_audio_runtime_clear_note(&player->runtime[i].note);
+  }
+
+  pfr_audio_runtime_refresh_player(player);
+}
+
+static void
+pfr_audio_runtime_pause_player(PfrSongPlayer* player)
+{
+  size_t i;
+
+  player->paused = true;
+  player->stopped = false;
+
+  for (i = 0; i < player->track_capacity; i++) {
+    pfr_audio_runtime_clear_note(&player->runtime[i].note);
+  }
+
+  pfr_audio_runtime_refresh_player(player);
+}
+
+static void
+pfr_audio_runtime_drop_player(PfrSongPlayer* player)
+{
+  size_t i;
+
+  player->asset = NULL;
+  player->paused = false;
+  player->stopped = true;
+  player->frames_until_tick = 0.0;
+  player->volume = PFR_AUDIO_FULL_VOLUME;
+  player->fade_level = PFR_AUDIO_FULL_VOLUME;
+  player->fade_interval = 0;
+  player->fade_counter = 0;
+  player->temporary_fade = false;
+  player->fade_in = false;
+
+  for (i = 0; i < player->track_capacity; i++) {
+    player->runtime[i].track = &player->tracks[i];
+    player->runtime[i].asset = NULL;
+    pfr_audio_runtime_stop_track_runtime(&player->runtime[i]);
+  }
+
+  pfr_audio_runtime_refresh_player(player);
 }
 
 static PfrSongPlayer*
@@ -228,8 +391,22 @@ pfr_audio_runtime_player_from_info(struct MusicPlayerInfo* info)
   return NULL;
 }
 
-static const PfrAudioClipAsset*
-pfr_audio_runtime_find_song_asset(u16 song_id)
+const PfrAudioSongAsset*
+pfr_audio_song_asset_for_header(const struct SongHeader* song_header)
+{
+  size_t i;
+
+  for (i = 0; i < gPfrAudioSongAssetCount; i++) {
+    if (gPfrAudioSongAssets[i].song_header == song_header) {
+      return &gPfrAudioSongAssets[i];
+    }
+  }
+
+  return NULL;
+}
+
+const PfrAudioSongAsset*
+pfr_audio_song_asset_for_id(u16 song_id)
 {
   size_t i;
 
@@ -242,8 +419,8 @@ pfr_audio_runtime_find_song_asset(u16 song_id)
   return NULL;
 }
 
-static const PfrCryAsset*
-pfr_audio_runtime_find_cry_asset(const struct WaveData* wave)
+const PfrCryAsset*
+pfr_audio_cry_asset_for_wave(const struct WaveData* wave)
 {
   size_t i;
 
@@ -254,42 +431,6 @@ pfr_audio_runtime_find_cry_asset(const struct WaveData* wave)
   }
 
   return NULL;
-}
-
-static void
-pfr_audio_runtime_refresh_player(PfrSongPlayer* player)
-{
-  player->info->ident = ID_NUMBER;
-  player->info->trackCount = player->asset != NULL ? 1 : 0;
-  player->info->songHeader = (struct SongHeader*)player->asset;
-  player->info->fadeOI = player->fade_interval;
-  player->info->fadeOC = player->fade_counter;
-  player->info->fadeOV = player->fade_level;
-  player->info->status = 0;
-
-  if (player->asset != NULL) {
-    player->info->status = MUSICPLAYER_STATUS_TRACK;
-
-    if (player->paused) {
-      player->info->status |= MUSICPLAYER_STATUS_PAUSE;
-    }
-  }
-}
-
-static void
-pfr_audio_runtime_reset_song_player(PfrSongPlayer* player)
-{
-  player->asset = NULL;
-  player->frame_index = 0;
-  player->volume = PFR_AUDIO_FULL_VOLUME;
-  player->fade_level = PFR_AUDIO_FULL_VOLUME;
-  player->fade_interval = 0;
-  player->fade_counter = 0;
-  player->pan = 0;
-  player->paused = FALSE;
-  player->temporary_fade = FALSE;
-  player->fade_in = FALSE;
-  pfr_audio_runtime_refresh_player(player);
 }
 
 static void
@@ -304,11 +445,10 @@ pfr_audio_runtime_reset_state(void)
   memset(gPokemonCryTracks, 0, sizeof(gPokemonCryTracks));
 
   for (i = 0; i < PFR_ARRAY_COUNT(sSongPlayers); i++) {
-    pfr_audio_runtime_reset_song_player(&sSongPlayers[i]);
+    pfr_audio_runtime_drop_player(&sSongPlayers[i]);
   }
 
-  pfr_audio_runtime_stop_cry();
-
+  memset(&sCryRuntime, 0, sizeof(sCryRuntime));
   sVSyncEnabled = FALSE;
   sCryStereo = FALSE;
   sCurrentBgmSongId = 0;
@@ -324,21 +464,343 @@ pfr_audio_runtime_reset_state(void)
   sCryChorus = 0;
 }
 
-static void
-pfr_audio_runtime_start_song(PfrSongPlayer* player,
-                             const PfrAudioClipAsset* asset)
+static double
+pfr_audio_runtime_note_frequency(int midi_note, int bend, int bend_range)
 {
-  player->asset = asset;
-  player->frame_index = 0;
-  player->volume = PFR_AUDIO_FULL_VOLUME;
-  player->fade_level = PFR_AUDIO_FULL_VOLUME;
-  player->fade_interval = 0;
-  player->fade_counter = 0;
-  player->pan = 0;
-  player->paused = FALSE;
-  player->temporary_fade = FALSE;
-  player->fade_in = FALSE;
-  pfr_audio_runtime_refresh_player(player);
+  double semitone = (double)midi_note + ((double)bend / 64.0) * bend_range;
+
+  return 440.0 * pow(2.0, (semitone - 69.0) / 12.0);
+}
+
+static const PfrAudioVoice*
+pfr_audio_runtime_resolve_voice_group(const PfrAudioVoice* group,
+                                      uint16_t group_count,
+                                      int voice_index,
+                                      int pitch)
+{
+  const PfrAudioVoice* voice;
+
+  if (group == NULL || group_count == 0) {
+    return NULL;
+  }
+
+  if (voice_index < 0) {
+    voice_index = 0;
+  } else if ((uint16_t)voice_index >= group_count) {
+    voice_index = group_count - 1;
+  }
+
+  voice = &group[voice_index];
+
+  while (voice->kind == PFR_AUDIO_VOICE_KEYSPLIT ||
+         voice->kind == PFR_AUDIO_VOICE_RHYTHM) {
+    int sub_index = 0;
+
+    if (voice->subgroup == NULL || voice->subgroup_count == 0) {
+      return NULL;
+    }
+
+    if (voice->kind == PFR_AUDIO_VOICE_KEYSPLIT) {
+      if (voice->keysplit_table == NULL) {
+        return NULL;
+      }
+
+      if (pitch < 0) {
+        pitch = 0;
+      } else if (pitch > 127) {
+        pitch = 127;
+      }
+
+      sub_index = voice->keysplit_table[pitch];
+    } else {
+      sub_index = pitch - 36;
+      if (sub_index < 0) {
+        sub_index = 0;
+      } else if ((uint16_t)sub_index >= voice->subgroup_count) {
+        sub_index = voice->subgroup_count - 1;
+      }
+    }
+
+    voice = &voice->subgroup[sub_index];
+  }
+
+  return voice;
+}
+
+static void
+pfr_audio_runtime_note_from_voice(PfrRuntimeNote* note,
+                                  const PfrAudioVoice* voice,
+                                  const struct MusicPlayerTrack* track,
+                                  uint16_t player_volume,
+                                  uint16_t fade_level,
+                                  uint8_t pitch,
+                                  uint8_t velocity)
+{
+  double voice_gain;
+  int pan;
+
+  pfr_audio_runtime_clear_note(note);
+  if (voice == NULL) {
+    return;
+  }
+
+  voice_gain = ((double)track->vol / 127.0) * ((double)velocity / 127.0) *
+               ((double)player_volume / (double)PFR_AUDIO_FULL_VOLUME) *
+               ((double)fade_level / (double)PFR_AUDIO_FULL_VOLUME) * 0.65;
+  pan = track->pan + track->panX + voice->pan;
+
+  note->voice = voice;
+  note->sample = voice->sample;
+  note->gain = voice_gain;
+  note->pan = pan;
+  note->release_frames_total = voice->release == 0 ? 16 : voice->release * 16;
+  note->release_frames_left = note->release_frames_total;
+  note->noise_state = 0x12345678u + pitch;
+  note->active = true;
+
+  switch (voice->kind) {
+    case PFR_AUDIO_VOICE_DIRECTSOUND:
+    case PFR_AUDIO_VOICE_DIRECTSOUND_NO_RESAMPLE:
+      if (voice->sample == NULL || voice->sample->sample_rate == 0) {
+        note->active = false;
+        return;
+      }
+
+      if (voice->kind == PFR_AUDIO_VOICE_DIRECTSOUND_NO_RESAMPLE) {
+        note->source_step =
+          (double)voice->sample->sample_rate / PFR_DEFAULT_AUDIO_SAMPLE_RATE;
+      } else {
+        int midi_key = pitch + track->keyShift + track->keyShiftX;
+        int bend = track->bend + track->pitX / 256;
+        double ratio =
+          pfr_audio_runtime_note_frequency(midi_key, bend, track->bendRange) /
+          pfr_audio_runtime_note_frequency(voice->base_key, 0, 2);
+
+        note->source_step = ratio * (double)voice->sample->sample_rate /
+                            PFR_DEFAULT_AUDIO_SAMPLE_RATE;
+      }
+      break;
+    case PFR_AUDIO_VOICE_SQUARE1:
+    case PFR_AUDIO_VOICE_SQUARE2:
+    case PFR_AUDIO_VOICE_NOISE:
+      note->source_step =
+        pfr_audio_runtime_note_frequency(
+          pitch + track->keyShift, track->bend, track->bendRange) /
+        PFR_DEFAULT_AUDIO_SAMPLE_RATE;
+      break;
+    case PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE:
+      if (voice->sample == NULL || voice->sample->sample_count == 0) {
+        note->active = false;
+        return;
+      }
+
+      note->source_step =
+        pfr_audio_runtime_note_frequency(
+          pitch + track->keyShift, track->bend, track->bendRange) *
+        (double)voice->sample->sample_count / PFR_DEFAULT_AUDIO_SAMPLE_RATE;
+      break;
+    default:
+      note->active = false;
+      return;
+  }
+}
+
+static void
+pfr_audio_runtime_start_note(PfrSongPlayer* player,
+                             PfrTrackRuntime* runtime,
+                             uint8_t note_cmd)
+{
+  struct MusicPlayerTrack* track = runtime->track;
+  const uint8_t* cmd = track->cmdPtr;
+  uint8_t duration = 0;
+
+  if (note_cmd != 0xCF) {
+    duration = sPfrClockTable[note_cmd - 0xCF];
+  }
+
+  track->gateTime = duration;
+
+  if (cmd[0] < 0x80) {
+    track->key = cmd[0];
+    cmd++;
+  }
+
+  if (cmd[0] < 0x80) {
+    track->velocity = cmd[0];
+    cmd++;
+  }
+
+  if (cmd[0] < 0x80) {
+    track->gateTime = (uint8_t)(track->gateTime + cmd[0]);
+    cmd++;
+  }
+
+  track->cmdPtr = (u8*)cmd;
+
+  if (runtime->note.active && !runtime->note.released) {
+    pfr_audio_runtime_release_note(&runtime->note);
+  }
+
+  pfr_audio_runtime_note_from_voice(
+    &runtime->note,
+    pfr_audio_runtime_resolve_voice_group(player->asset->voicegroup,
+                                          player->asset->voicegroup_count,
+                                          track->tone.key,
+                                          track->key),
+    track,
+    player->volume,
+    player->fade_level,
+    track->key,
+    track->velocity);
+
+  runtime->note.remaining_ticks = note_cmd == 0xCF ? -1 : duration;
+}
+
+static const PfrAudioTrackRelocation*
+pfr_audio_runtime_find_relocation(const PfrAudioTrackAsset* asset,
+                                  size_t offset)
+{
+  uint32_t i;
+
+  for (i = 0; i < asset->relocation_count; i++) {
+    if (asset->relocations[i].offset == offset) {
+      return &asset->relocations[i];
+    }
+  }
+
+  return NULL;
+}
+
+static const uint8_t*
+pfr_audio_runtime_resolve_target(const PfrAudioTrackAsset* asset,
+                                 const uint8_t* operand_ptr)
+{
+  size_t offset = (size_t)(operand_ptr - asset->data);
+  const PfrAudioTrackRelocation* relocation =
+    pfr_audio_runtime_find_relocation(asset, offset);
+
+  if (relocation == NULL) {
+    return asset->data;
+  }
+
+  return asset->data + relocation->target_offset;
+}
+
+static void
+pfr_audio_runtime_step_track_command(PfrSongPlayer* player,
+                                     PfrTrackRuntime* runtime)
+{
+  struct MusicPlayerTrack* track = runtime->track;
+  uint8_t status = *track->cmdPtr;
+
+  if (status < 0x80) {
+    status = track->runningStatus;
+  } else {
+    track->cmdPtr++;
+    if (status >= 0xBD) {
+      track->runningStatus = status;
+    }
+  }
+
+  if (status >= 0xCF) {
+    pfr_audio_runtime_start_note(player, runtime, status);
+    return;
+  }
+
+  if (status <= 0xB0) {
+    track->wait = sPfrClockTable[status - 0x80];
+    return;
+  }
+
+  switch (status) {
+    case 0xB1:
+      track->flags = 0;
+      pfr_audio_runtime_release_note(&runtime->note);
+      break;
+    case 0xB2:
+      track->cmdPtr =
+        (u8*)pfr_audio_runtime_resolve_target(runtime->asset, track->cmdPtr);
+      break;
+    case 0xB3:
+      if (track->patternLevel < PFR_TRACK_RUNTIME_STACK_DEPTH) {
+        track->patternStack[track->patternLevel++] = track->cmdPtr + 4;
+      }
+
+      track->cmdPtr =
+        (u8*)pfr_audio_runtime_resolve_target(runtime->asset, track->cmdPtr);
+      break;
+    case 0xB4:
+      if (track->patternLevel != 0) {
+        track->cmdPtr = track->patternStack[--track->patternLevel];
+      }
+      break;
+    case 0xBB:
+      player->info->tempoD = *track->cmdPtr++;
+      break;
+    case 0xBC:
+      track->keyShift = (s8)*track->cmdPtr++;
+      break;
+    case 0xBD:
+      track->tone.key = *track->cmdPtr++;
+      break;
+    case 0xBE:
+      track->vol = *track->cmdPtr++;
+      break;
+    case 0xBF:
+      track->pan = (s8)(*track->cmdPtr++ - C_V);
+      break;
+    case 0xC0:
+      track->bend = (s8)(*track->cmdPtr++ - C_V);
+      break;
+    case 0xC1:
+      track->bendRange = *track->cmdPtr++;
+      break;
+    case 0xC2:
+      track->lfoSpeed = *track->cmdPtr++;
+      break;
+    case 0xC3:
+      track->lfoDelay = *track->cmdPtr;
+      track->lfoDelayC = *track->cmdPtr++;
+      break;
+    case 0xC4:
+      track->mod = *track->cmdPtr++;
+      break;
+    case 0xC5:
+      track->modT = *track->cmdPtr++;
+      break;
+    case 0xC8:
+      track->tune = (s8)(*track->cmdPtr++ - C_V);
+      break;
+    case 0xCD: {
+      uint8_t xcmd = *track->cmdPtr++;
+
+      switch (xcmd) {
+        case 0x07:
+          track->tone.release = *track->cmdPtr++;
+          break;
+        case 0x08:
+          track->pseudoEchoVolume = *track->cmdPtr++;
+          break;
+        case 0x09:
+          track->pseudoEchoLength = *track->cmdPtr++;
+          break;
+        case 0x0C:
+          track->cmdPtr += 2;
+          break;
+        case 0x0D:
+          track->cmdPtr += 4;
+          break;
+        default:
+          break;
+      }
+      break;
+    }
+    case 0xCE:
+      pfr_audio_runtime_release_note(&runtime->note);
+      break;
+    default:
+      break;
+  }
 }
 
 static void
@@ -363,7 +825,7 @@ pfr_audio_runtime_update_fade(PfrSongPlayer* player)
       player->fade_level = PFR_AUDIO_FULL_VOLUME;
       player->fade_interval = 0;
       player->fade_counter = 0;
-      player->fade_in = FALSE;
+      player->fade_in = false;
     } else {
       player->fade_level = (uint16_t)(player->fade_level + PFR_AUDIO_FADE_STEP);
     }
@@ -373,12 +835,13 @@ pfr_audio_runtime_update_fade(PfrSongPlayer* player)
     player->fade_counter = 0;
 
     if (player->temporary_fade) {
-      player->paused = TRUE;
-      player->temporary_fade = FALSE;
+      player->paused = true;
     } else {
-      pfr_audio_runtime_stop_song_player(player);
-      return;
+      player->stopped = true;
     }
+
+    player->temporary_fade = false;
+    player->fade_in = false;
   } else {
     player->fade_level = (uint16_t)(player->fade_level - PFR_AUDIO_FADE_STEP);
   }
@@ -387,119 +850,299 @@ pfr_audio_runtime_update_fade(PfrSongPlayer* player)
 }
 
 static void
-pfr_audio_runtime_mix_song_player(PfrSongPlayer* player,
-                                  int32_t* mix_buffer,
-                                  size_t frame_count)
+pfr_audio_runtime_tick_player(PfrSongPlayer* player)
 {
-  int32_t left_gain;
-  int32_t right_gain;
-  size_t frame_index;
-  int32_t effective_volume;
+  uint8_t i;
+  bool any_track_active = false;
 
-  if (player->asset == NULL || player->paused) {
+  if (player->asset == NULL || player->paused || player->stopped) {
     return;
   }
 
-  effective_volume = (int32_t)player->volume * (int32_t)player->fade_level /
-                     PFR_AUDIO_FULL_VOLUME;
-  pfr_audio_runtime_pan_gains(player->pan, &left_gain, &right_gain);
+  pfr_audio_runtime_update_fade(player);
 
-  for (frame_index = 0; frame_index < frame_count; frame_index++) {
-    size_t source_offset;
-    int32_t sample_left;
-    int32_t sample_right;
-    size_t dest_offset;
+  for (i = 0; i < player->asset->track_count; i++) {
+    PfrTrackRuntime* runtime = &player->runtime[i];
+    struct MusicPlayerTrack* track = runtime->track;
 
-    if (player->frame_index >= player->asset->frame_count) {
-      if (player->asset->loop) {
-        player->frame_index = 0;
-      } else {
-        pfr_audio_runtime_stop_song_player(player);
-        break;
+    if ((track->flags & MPT_FLG_EXIST) == 0) {
+      continue;
+    }
+
+    while ((track->flags & MPT_FLG_EXIST) != 0 && track->wait == 0) {
+      pfr_audio_runtime_step_track_command(player, runtime);
+    }
+
+    if (track->wait > 0) {
+      track->wait--;
+    }
+
+    if (runtime->note.active && runtime->note.remaining_ticks > 0) {
+      runtime->note.remaining_ticks--;
+      if (runtime->note.remaining_ticks == 0) {
+        pfr_audio_runtime_release_note(&runtime->note);
       }
     }
 
-    source_offset = (size_t)player->frame_index * PFR_AUDIO_CHANNEL_COUNT;
-    sample_left =
-      (int32_t)player->asset->samples[source_offset + 0] * effective_volume;
-    sample_right =
-      (int32_t)player->asset->samples[source_offset + 1] * effective_volume;
-    sample_left = sample_left * left_gain / PFR_AUDIO_FULL_VOLUME;
-    sample_right = sample_right * right_gain / PFR_AUDIO_FULL_VOLUME;
+    if ((track->flags & MPT_FLG_EXIST) != 0 || runtime->note.active) {
+      any_track_active = true;
+    }
+  }
 
-    dest_offset = frame_index * PFR_AUDIO_CHANNEL_COUNT;
-    mix_buffer[dest_offset + 0] += sample_left;
-    mix_buffer[dest_offset + 1] += sample_right;
-    player->frame_index++;
+  if (!any_track_active) {
+    if (player->asset->loop) {
+      const PfrAudioSongAsset* asset = player->asset;
+      size_t j;
+
+      for (j = 0; j < player->track_capacity; j++) {
+        pfr_audio_runtime_stop_track_runtime(&player->runtime[j]);
+      }
+
+      player->paused = false;
+      player->stopped = false;
+      player->frames_until_tick = 0.0;
+
+      for (j = 0; j < asset->track_count; j++) {
+        struct MusicPlayerTrack* track = &player->tracks[j];
+
+        memset(track, 0, sizeof(*track));
+        track->flags = MPT_FLG_EXIST;
+        track->cmdPtr = (u8*)asset->tracks[j].data;
+        track->vol = 127;
+        track->velocity = 100;
+        track->bendRange = 2;
+        track->volX = 64;
+        track->lfoSpeed = 22;
+        player->runtime[j].track = track;
+        player->runtime[j].asset = &asset->tracks[j];
+      }
+    } else {
+      player->stopped = true;
+      pfr_audio_runtime_refresh_player(player);
+    }
   }
 }
 
 static void
-pfr_audio_runtime_mix_cry(int32_t* mix_buffer, size_t frame_count)
+pfr_audio_runtime_mix_note(const PfrRuntimeNote* note_const,
+                           int32_t* mix_left,
+                           int32_t* mix_right)
 {
-  int32_t left_gain;
-  int32_t right_gain;
-  size_t frame_index;
+  PfrRuntimeNote* note = (PfrRuntimeNote*)note_const;
+  double sample = 0.0;
+  double left_gain;
+  double right_gain;
+
+  if (!note->active) {
+    return;
+  }
+
+  if (note->voice == NULL) {
+    note->active = false;
+    return;
+  }
+
+  switch (note->voice->kind) {
+    case PFR_AUDIO_VOICE_DIRECTSOUND:
+    case PFR_AUDIO_VOICE_DIRECTSOUND_NO_RESAMPLE:
+      if (note->sample == NULL || note->sample->sample_count == 0) {
+        note->active = false;
+        return;
+      }
+
+      if ((uint32_t)note->source_pos >= note->sample->sample_count) {
+        if (note->sample->loop_enabled &&
+            note->sample->loop_start < note->sample->sample_count) {
+          uint32_t loop_len =
+            note->sample->sample_count - note->sample->loop_start;
+
+          note->source_pos =
+            note->sample->loop_start +
+            fmod(note->source_pos - note->sample->loop_start, loop_len);
+        } else if (!note->released &&
+                   note->voice->kind !=
+                     PFR_AUDIO_VOICE_DIRECTSOUND_NO_RESAMPLE) {
+          note->source_pos = fmod(note->source_pos, note->sample->sample_count);
+        } else {
+          note->release_frames_left = 0;
+          note->active = false;
+          return;
+        }
+      }
+
+      sample =
+        (double)note->sample->samples[(uint32_t)note->source_pos] / 127.0;
+      note->source_pos += note->source_step;
+      break;
+    case PFR_AUDIO_VOICE_SQUARE1:
+    case PFR_AUDIO_VOICE_SQUARE2: {
+      static const double sDutyCycles[] = { 0.125, 0.25, 0.5, 0.75 };
+      double duty = sDutyCycles[note->voice->duty_or_period & 3];
+
+      note->phase += note->source_step;
+      note->phase -= floor(note->phase);
+      sample = note->phase < duty ? 0.85 : -0.85;
+      break;
+    }
+    case PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE:
+      if (note->sample == NULL || note->sample->sample_count == 0) {
+        note->active = false;
+        return;
+      }
+
+      sample = (double)note->sample
+                 ->samples[(uint32_t)note->phase % note->sample->sample_count] /
+               127.0;
+      note->phase += note->source_step;
+      break;
+    case PFR_AUDIO_VOICE_NOISE:
+      note->phase += note->source_step;
+      if (note->phase >= 1.0) {
+        note->phase -= floor(note->phase);
+        note->noise_state = note->noise_state * 1664525u + 1013904223u;
+        note->held_sample =
+          ((float)((note->noise_state >> 16) & 0xFF) / 127.5f) - 1.0f;
+      }
+      sample = note->held_sample;
+      break;
+    default:
+      note->active = false;
+      return;
+  }
+
+  if (note->released) {
+    if (note->release_frames_left <= 0) {
+      note->active = false;
+      return;
+    }
+
+    sample *= (double)note->release_frames_left / note->release_frames_total;
+    note->release_frames_left--;
+  }
+
+  pfr_audio_runtime_pan_gains(note->pan, note->gain, &left_gain, &right_gain);
+  *mix_left += (int32_t)(sample * left_gain * 32767.0);
+  *mix_right += (int32_t)(sample * right_gain * 32767.0);
+}
+
+static void
+pfr_audio_runtime_mix_player_frame(PfrSongPlayer* player,
+                                   int32_t* mix_left,
+                                   int32_t* mix_right)
+{
+  uint8_t i;
+  double tick_frames;
+
+  if (player->asset == NULL || player->paused || player->stopped) {
+    return;
+  }
+
+  if (player->frames_until_tick <= 0.0) {
+    pfr_audio_runtime_tick_player(player);
+    tick_frames = ((double)PFR_DEFAULT_AUDIO_SAMPLE_RATE * 60.0) /
+                  (((double)player->info->tempoD * 2.0) * 24.0);
+    if (tick_frames < 1.0) {
+      tick_frames = 1.0;
+    }
+    player->frames_until_tick += tick_frames;
+  }
+
+  for (i = 0; i < player->track_capacity; i++) {
+    pfr_audio_runtime_mix_note(&player->runtime[i].note, mix_left, mix_right);
+  }
+
+  player->frames_until_tick -= 1.0;
+}
+
+static void
+pfr_audio_runtime_stop_cry(void)
+{
+  memset(&sCryRuntime, 0, sizeof(sCryRuntime));
+  gPokemonCryMusicPlayers[0].status = 0;
+}
+
+static void
+pfr_audio_runtime_mix_cry_frame(int32_t* mix_left, int32_t* mix_right)
+{
+  double sample;
+  double left_gain;
+  double right_gain;
+  const PfrAudioSample* asset_sample;
 
   if (!sCryRuntime.active || sCryRuntime.asset == NULL) {
     return;
   }
 
-  pfr_audio_runtime_pan_gains(
-    sCryStereo ? sCryRuntime.pan : 0, &left_gain, &right_gain);
-
-  for (frame_index = 0; frame_index < frame_count; frame_index++) {
-    uint32_t source_frame;
-    size_t source_offset;
-    int32_t sample_left;
-    int32_t sample_right;
-    size_t dest_offset;
-
-    if (!sCryRuntime.active) {
-      break;
-    }
-
-    if (sCryRuntime.frames_played >= sCryRuntime.frame_limit) {
-      pfr_audio_runtime_stop_cry();
-      break;
-    }
-
-    if (sCryRuntime.frame_position < 0.0 ||
-        sCryRuntime.frame_position >= (double)sCryRuntime.asset->frame_count) {
-      pfr_audio_runtime_stop_cry();
-      break;
-    }
-
-    source_frame = (uint32_t)sCryRuntime.frame_position;
-    source_offset = (size_t)source_frame * PFR_AUDIO_CHANNEL_COUNT;
-    sample_left = (int32_t)sCryRuntime.asset->samples[source_offset + 0] *
-                  sCryRuntime.volume;
-    sample_right = (int32_t)sCryRuntime.asset->samples[source_offset + 1] *
-                   sCryRuntime.volume;
-
-    if (!sCryStereo) {
-      int32_t mono_sample = (sample_left + sample_right) / 2;
-
-      sample_left = mono_sample;
-      sample_right = mono_sample;
-    }
-
-    sample_left = sample_left * left_gain / 127;
-    sample_right = sample_right * right_gain / 127;
-
-    dest_offset = frame_index * PFR_AUDIO_CHANNEL_COUNT;
-    mix_buffer[dest_offset + 0] += sample_left;
-    mix_buffer[dest_offset + 1] += sample_right;
-
-    sCryRuntime.frame_position += sCryRuntime.frame_step;
-    sCryRuntime.frames_played++;
-  }
-
-  if (!sCryRuntime.active) {
+  asset_sample = sCryRuntime.asset->sample;
+  if (asset_sample == NULL || asset_sample->sample_count == 0) {
+    pfr_audio_runtime_stop_cry();
     return;
   }
 
+  if (sCryRuntime.frames_played >= sCryRuntime.frame_limit ||
+      sCryRuntime.frame_position < 0.0 ||
+      sCryRuntime.frame_position >= asset_sample->sample_count) {
+    pfr_audio_runtime_stop_cry();
+    return;
+  }
+
+  sample =
+    (double)asset_sample->samples[(uint32_t)sCryRuntime.frame_position] / 127.0;
+  pfr_audio_runtime_pan_gains(sCryStereo ? sCryRuntime.pan : 0,
+                              (double)sCryRuntime.volume / 127.0,
+                              &left_gain,
+                              &right_gain);
+  *mix_left += (int32_t)(sample * left_gain * 32767.0);
+  *mix_right += (int32_t)(sample * right_gain * 32767.0);
+
+  sCryRuntime.frame_position += sCryRuntime.frame_step;
+  sCryRuntime.frames_played++;
   gPokemonCryMusicPlayers[0].status = MUSICPLAYER_STATUS_TRACK;
+}
+
+static void
+pfr_audio_runtime_start_song(PfrSongPlayer* player,
+                             const PfrAudioSongAsset* asset)
+{
+  size_t i;
+
+  player->asset = asset;
+  player->paused = false;
+  player->stopped = false;
+  player->frames_until_tick = 0.0;
+  player->volume = PFR_AUDIO_FULL_VOLUME;
+  player->fade_level = PFR_AUDIO_FULL_VOLUME;
+  player->fade_interval = 0;
+  player->fade_counter = 0;
+  player->temporary_fade = false;
+  player->fade_in = false;
+  player->info->clock = 0;
+  player->info->tempoD = 150;
+  player->info->tempoU = 0x100;
+  player->info->tempoI = 150;
+  player->info->tempoC = 0;
+
+  for (i = 0; i < player->track_capacity; i++) {
+    player->runtime[i].track = &player->tracks[i];
+    pfr_audio_runtime_stop_track_runtime(&player->runtime[i]);
+    player->runtime[i].asset =
+      i < asset->track_count ? &asset->tracks[i] : NULL;
+
+    if (i < asset->track_count) {
+      struct MusicPlayerTrack* track = &player->tracks[i];
+
+      memset(track, 0, sizeof(*track));
+      track->flags = MPT_FLG_EXIST;
+      track->cmdPtr = (u8*)asset->tracks[i].data;
+      track->vol = 127;
+      track->velocity = 100;
+      track->bendRange = 2;
+      track->volX = 64;
+      track->lfoSpeed = 22;
+    }
+  }
+
+  pfr_audio_runtime_refresh_player(player);
 }
 
 u16
@@ -536,22 +1179,24 @@ m4aSoundInit(void)
 void
 m4aSoundMain(void)
 {
-  int32_t mix_buffer[PFR_AUDIO_FRAMES_PER_VBLANK * PFR_AUDIO_CHANNEL_COUNT];
   int16_t output[PFR_AUDIO_FRAMES_PER_VBLANK * PFR_AUDIO_CHANNEL_COUNT];
-  size_t i;
+  size_t frame;
 
-  memset(mix_buffer, 0, sizeof(mix_buffer));
+  for (frame = 0; frame < PFR_AUDIO_FRAMES_PER_VBLANK; frame++) {
+    int32_t mix_left = 0;
+    int32_t mix_right = 0;
+    size_t player_index;
 
-  for (i = 0; i < PFR_ARRAY_COUNT(sSongPlayers); i++) {
-    pfr_audio_runtime_update_fade(&sSongPlayers[i]);
-    pfr_audio_runtime_mix_song_player(
-      &sSongPlayers[i], mix_buffer, PFR_AUDIO_FRAMES_PER_VBLANK);
-  }
+    for (player_index = 0; player_index < PFR_ARRAY_COUNT(sSongPlayers);
+         player_index++) {
+      pfr_audio_runtime_mix_player_frame(
+        &sSongPlayers[player_index], &mix_left, &mix_right);
+    }
 
-  pfr_audio_runtime_mix_cry(mix_buffer, PFR_AUDIO_FRAMES_PER_VBLANK);
+    pfr_audio_runtime_mix_cry_frame(&mix_left, &mix_right);
 
-  for (i = 0; i < PFR_ARRAY_COUNT(output); i++) {
-    output[i] = pfr_audio_runtime_clamp_sample(mix_buffer[i]);
+    output[frame * 2 + 0] = pfr_audio_runtime_clamp_sample(mix_left);
+    output[frame * 2 + 1] = pfr_audio_runtime_clamp_sample(mix_right);
   }
 
   pfr_audio_queue_source_frames(output, PFR_AUDIO_FRAMES_PER_VBLANK);
@@ -560,11 +1205,9 @@ m4aSoundMain(void)
 void
 m4aSoundVSync(void)
 {
-  if (!sVSyncEnabled) {
-    return;
+  if (sVSyncEnabled) {
+    gSoundInfo.pcmDmaCounter++;
   }
-
-  gSoundInfo.pcmDmaCounter++;
 }
 
 void
@@ -582,14 +1225,13 @@ m4aSoundVSyncOff(void)
 void
 m4aSongNumStart(u16 n)
 {
-  const PfrAudioClipAsset* asset = pfr_audio_runtime_find_song_asset(n);
+  const PfrAudioSongAsset* asset = pfr_audio_song_asset_for_id(n);
   PfrSongPlayer* player;
 
   if (asset == NULL) {
     if (n == MUS_NONE || n == MUS_DUMMY) {
-      pfr_audio_runtime_stop_song_player(&sSongPlayers[0]);
+      pfr_audio_runtime_full_stop_player(&sSongPlayers[0]);
     }
-
     return;
   }
 
@@ -607,7 +1249,7 @@ m4aSongNumStart(u16 n)
 void
 m4aSongNumStartOrChange(u16 n)
 {
-  const PfrAudioClipAsset* asset = pfr_audio_runtime_find_song_asset(n);
+  const PfrAudioSongAsset* asset = pfr_audio_song_asset_for_id(n);
   PfrSongPlayer* player;
 
   if (asset == NULL) {
@@ -615,7 +1257,7 @@ m4aSongNumStartOrChange(u16 n)
   }
 
   player = &sSongPlayers[asset->player_id];
-  if (player->asset == asset && !player->paused) {
+  if (player->asset == asset && !player->paused && !player->stopped) {
     return;
   }
 
@@ -625,7 +1267,7 @@ m4aSongNumStartOrChange(u16 n)
 void
 m4aSongNumStop(u16 n)
 {
-  const PfrAudioClipAsset* asset = pfr_audio_runtime_find_song_asset(n);
+  const PfrAudioSongAsset* asset = pfr_audio_song_asset_for_id(n);
   PfrSongPlayer* player;
 
   if (asset == NULL) {
@@ -634,7 +1276,7 @@ m4aSongNumStop(u16 n)
 
   player = &sSongPlayers[asset->player_id];
   if (player->asset == asset) {
-    pfr_audio_runtime_stop_song_player(player);
+    pfr_audio_runtime_pause_player(player);
   }
 }
 
@@ -644,7 +1286,7 @@ m4aMPlayAllStop(void)
   size_t i;
 
   for (i = 0; i < PFR_ARRAY_COUNT(sSongPlayers); i++) {
-    pfr_audio_runtime_stop_song_player(&sSongPlayers[i]);
+    pfr_audio_runtime_pause_player(&sSongPlayers[i]);
   }
 
   pfr_audio_runtime_stop_cry();
@@ -656,7 +1298,7 @@ m4aMPlayStop(struct MusicPlayerInfo* mplayInfo)
   PfrSongPlayer* player = pfr_audio_runtime_player_from_info(mplayInfo);
 
   if (player != NULL) {
-    pfr_audio_runtime_stop_song_player(player);
+    pfr_audio_runtime_pause_player(player);
     return;
   }
 
@@ -674,12 +1316,8 @@ m4aMPlayContinue(struct MusicPlayerInfo* mplayInfo)
     return;
   }
 
-  player->paused = FALSE;
-  player->fade_level = PFR_AUDIO_FULL_VOLUME;
-  player->fade_interval = 0;
-  player->fade_counter = 0;
-  player->temporary_fade = FALSE;
-  player->fade_in = FALSE;
+  player->paused = false;
+  player->stopped = false;
   pfr_audio_runtime_refresh_player(player);
 }
 
@@ -692,8 +1330,8 @@ m4aMPlayFadeOut(struct MusicPlayerInfo* mplayInfo, u16 speed)
     return;
   }
 
-  player->temporary_fade = FALSE;
-  player->fade_in = FALSE;
+  player->temporary_fade = false;
+  player->fade_in = false;
   player->fade_interval = speed == 0 ? 1 : speed;
   player->fade_counter = player->fade_interval;
   pfr_audio_runtime_refresh_player(player);
@@ -708,8 +1346,8 @@ m4aMPlayFadeOutTemporarily(struct MusicPlayerInfo* mplayInfo, u16 speed)
     return;
   }
 
-  player->temporary_fade = TRUE;
-  player->fade_in = FALSE;
+  player->temporary_fade = true;
+  player->fade_in = false;
   player->fade_interval = speed == 0 ? 1 : speed;
   player->fade_counter = player->fade_interval;
   pfr_audio_runtime_refresh_player(player);
@@ -724,9 +1362,10 @@ m4aMPlayFadeIn(struct MusicPlayerInfo* mplayInfo, u16 speed)
     return;
   }
 
-  player->paused = FALSE;
-  player->temporary_fade = FALSE;
-  player->fade_in = TRUE;
+  player->paused = false;
+  player->stopped = false;
+  player->temporary_fade = false;
+  player->fade_in = true;
   player->fade_level = 0;
   player->fade_interval = speed == 0 ? 1 : speed;
   player->fade_counter = player->fade_interval;
@@ -745,8 +1384,8 @@ m4aMPlayImmInit(struct MusicPlayerInfo* mplayInfo)
   player->fade_level = PFR_AUDIO_FULL_VOLUME;
   player->fade_interval = 0;
   player->fade_counter = 0;
-  player->temporary_fade = FALSE;
-  player->fade_in = FALSE;
+  player->temporary_fade = false;
+  player->fade_in = false;
   pfr_audio_runtime_refresh_player(player);
 }
 
@@ -756,36 +1395,44 @@ m4aMPlayVolumeControl(struct MusicPlayerInfo* mplayInfo,
                       u16 volume)
 {
   PfrSongPlayer* player = pfr_audio_runtime_player_from_info(mplayInfo);
-
-  (void)trackBits;
+  size_t i;
 
   if (player == NULL) {
     return;
   }
 
   player->volume = volume;
-  pfr_audio_runtime_refresh_player(player);
+
+  for (i = 0; i < player->track_capacity; i++) {
+    if ((trackBits & (1u << i)) != 0) {
+      player->tracks[i].volX = (u8)(volume / 4);
+    }
+  }
 }
 
 void
 m4aMPlayPanpotControl(struct MusicPlayerInfo* mplayInfo, u16 trackBits, s8 pan)
 {
   PfrSongPlayer* player = pfr_audio_runtime_player_from_info(mplayInfo);
-
-  (void)trackBits;
+  size_t i;
 
   if (player == NULL) {
     return;
   }
 
-  player->pan = pan;
+  for (i = 0; i < player->track_capacity; i++) {
+    if ((trackBits & (1u << i)) != 0) {
+      player->tracks[i].panX = pan;
+    }
+  }
 }
 
 void
 m4aMPlayTempoControl(struct MusicPlayerInfo* mplayInfo, u16 tempo)
 {
-  (void)mplayInfo;
-  (void)tempo;
+  if (mplayInfo != NULL) {
+    mplayInfo->tempoD = tempo;
+  }
 }
 
 void
@@ -793,9 +1440,19 @@ m4aMPlayPitchControl(struct MusicPlayerInfo* mplayInfo,
                      u16 trackBits,
                      s16 pitch)
 {
-  (void)mplayInfo;
-  (void)trackBits;
-  (void)pitch;
+  PfrSongPlayer* player = pfr_audio_runtime_player_from_info(mplayInfo);
+  size_t i;
+
+  if (player == NULL) {
+    return;
+  }
+
+  for (i = 0; i < player->track_capacity; i++) {
+    if ((trackBits & (1u << i)) != 0) {
+      player->tracks[i].keyShiftX = (s8)(pitch >> 8);
+      player->tracks[i].pitX = (u8)pitch;
+    }
+  }
 }
 
 void
@@ -803,9 +1460,18 @@ m4aMPlayModDepthSet(struct MusicPlayerInfo* mplayInfo,
                     u16 trackBits,
                     u8 modDepth)
 {
-  (void)mplayInfo;
-  (void)trackBits;
-  (void)modDepth;
+  PfrSongPlayer* player = pfr_audio_runtime_player_from_info(mplayInfo);
+  size_t i;
+
+  if (player == NULL) {
+    return;
+  }
+
+  for (i = 0; i < player->track_capacity; i++) {
+    if ((trackBits & (1u << i)) != 0) {
+      player->tracks[i].mod = modDepth;
+    }
+  }
 }
 
 void
@@ -813,33 +1479,42 @@ m4aMPlayLFOSpeedSet(struct MusicPlayerInfo* mplayInfo,
                     u16 trackBits,
                     u8 lfoSpeed)
 {
-  (void)mplayInfo;
-  (void)trackBits;
-  (void)lfoSpeed;
+  PfrSongPlayer* player = pfr_audio_runtime_player_from_info(mplayInfo);
+  size_t i;
+
+  if (player == NULL) {
+    return;
+  }
+
+  for (i = 0; i < player->track_capacity; i++) {
+    if ((trackBits & (1u << i)) != 0) {
+      player->tracks[i].lfoSpeed = lfoSpeed;
+    }
+  }
 }
 
 struct MusicPlayerInfo*
 SetPokemonCryTone(struct ToneData* tone)
 {
-  const PfrCryAsset* asset = pfr_audio_runtime_find_cry_asset(tone->wav);
+  const PfrCryAsset* asset = pfr_audio_cry_asset_for_wave(tone->wav);
   double pitch_scale = (double)sCryPitch / (double)PFR_CRY_DEFAULT_PITCH;
 
-  if (asset == NULL) {
+  if (asset == NULL || asset->sample == NULL) {
     pfr_audio_runtime_stop_cry();
     return &gPokemonCryMusicPlayers[0];
   }
 
   sCryRuntime.asset = asset;
   sCryRuntime.frame_position =
-    (tone->type == 0x30) ? (double)(asset->frame_count - 1) : 0.0;
+    (tone->type == 0x30) ? (double)(asset->sample->sample_count - 1) : 0.0;
   sCryRuntime.frame_step = (tone->type == 0x30) ? -pitch_scale : pitch_scale;
   sCryRuntime.frame_limit =
-    (asset->frame_count *
+    (asset->sample->sample_count *
      (uint32_t)(sCryLength == 0 ? PFR_CRY_DEFAULT_LENGTH : sCryLength)) /
     PFR_CRY_DEFAULT_LENGTH;
   if (sCryRuntime.frame_limit == 0 ||
-      sCryRuntime.frame_limit > asset->frame_count) {
-    sCryRuntime.frame_limit = asset->frame_count;
+      sCryRuntime.frame_limit > asset->sample->sample_count) {
+    sCryRuntime.frame_limit = asset->sample->sample_count;
   }
   sCryRuntime.frames_played = 0;
   sCryRuntime.volume = sCryVolume;
@@ -849,7 +1524,7 @@ SetPokemonCryTone(struct ToneData* tone)
   sCryRuntime.pan = sCryPan;
   sCryRuntime.chorus = sCryChorus;
   sCryRuntime.reverse = tone->type == 0x30;
-  sCryRuntime.active = TRUE;
+  sCryRuntime.active = true;
   sPendingCry = TRUE;
   gPokemonCryMusicPlayers[0].ident = ID_NUMBER;
   gPokemonCryMusicPlayers[0].trackCount = 1;
@@ -872,13 +1547,13 @@ SetPokemonCryPanpot(s8 val)
 void
 SetPokemonCryPitch(s16 val)
 {
-  sCryPitch = (u8)(val & 0xFF);
+  sCryPitch = (uint16_t)val;
 }
 
 void
 SetPokemonCryLength(u16 val)
 {
-  sCryLength = (uint8_t)val;
+  sCryLength = val;
 }
 
 void
@@ -927,6 +1602,7 @@ SetPokemonCryPriority(u8 val)
 void
 ClearPokemonCrySongs(void)
 {
+  memset(gPokemonCrySongs, 0, sizeof(gPokemonCrySongs));
   pfr_audio_runtime_stop_cry();
 }
 
@@ -939,7 +1615,8 @@ pfr_stub_current_bgm(void)
 bool8
 pfr_stub_is_bgm_playing(void)
 {
-  return sSongPlayers[0].asset != NULL && !sSongPlayers[0].paused;
+  return sSongPlayers[0].asset != NULL && !sSongPlayers[0].paused &&
+         !sSongPlayers[0].stopped;
 }
 
 bool8

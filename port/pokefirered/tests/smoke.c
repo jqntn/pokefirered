@@ -1344,9 +1344,9 @@ test_core_and_audio(void)
   assert(cry_window.done);
   assert(menu_window.done);
   assert(intro_window.hash == 0x2E85EDC5u);
-  assert(title_window.hash == 0x54AE625Cu);
-  assert(cry_window.hash == 0xFA90E5AAu);
-  assert(menu_window.hash == 0x7F0B95A1u);
+  assert(title_window.hash == 0x62B33A8Au);
+  assert(cry_window.hash == 0x6ED3C934u);
+  assert(menu_window.hash == 0xBCB536C2u);
 
   gPfrRuntimeState.save[0] = 42;
   gPfrRuntimeState.save_dirty = true;

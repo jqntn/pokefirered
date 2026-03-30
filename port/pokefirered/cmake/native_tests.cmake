@@ -3,6 +3,8 @@ function(pfr_define_native_tests)
   pfr_add_port_test_executable(pfr_integration tests/integration.c)
   pfr_add_port_test_executable(
     pfr_startup_frame_capture tests/startup_frame_capture.c)
+  pfr_add_port_test_executable(
+    pfr_startup_audio_capture tests/startup_audio_capture.c)
 
   add_test(NAME pfr_smoke COMMAND pfr_smoke)
   add_test(
@@ -47,10 +49,18 @@ function(pfr_define_native_tests)
 
   set(PFR_STARTUP_FRAME_MANIFEST
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/startup_frame_manifest.txt")
+  set(PFR_STARTUP_INPUT_MANIFEST
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/startup_input_manifest.txt")
+  set(PFR_STARTUP_AUDIO_MANIFEST
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/startup_audio_manifest.txt")
   set(PFR_STARTUP_CAPTURE_OUTPUT_DIR
       "${CMAKE_CURRENT_BINARY_DIR}/test-output/startup-capture")
   set(PFR_STARTUP_CAPTURE_OUTPUT_MANIFEST
       "${PFR_STARTUP_CAPTURE_OUTPUT_DIR}/capture_manifest.txt")
+  set(PFR_STARTUP_AUDIO_OUTPUT_DIR
+      "${CMAKE_CURRENT_BINARY_DIR}/test-output/startup-audio")
+  set(PFR_STARTUP_AUDIO_OUTPUT_MANIFEST
+      "${PFR_STARTUP_AUDIO_OUTPUT_DIR}/audio_capture_manifest.txt")
 
   add_test(
     NAME pfr_startup_capture
@@ -63,4 +73,17 @@ function(pfr_define_native_tests)
             ${PFR_STARTUP_CAPTURE_OUTPUT_MANIFEST}
             --frame-manifest
             ${PFR_STARTUP_FRAME_MANIFEST})
+  add_test(
+    NAME pfr_startup_audio_capture
+    COMMAND pfr_startup_audio_capture
+            --mode
+            game
+            --output-dir
+            ${PFR_STARTUP_AUDIO_OUTPUT_DIR}
+            --manifest-out
+            ${PFR_STARTUP_AUDIO_OUTPUT_MANIFEST}
+            --audio-manifest
+            ${PFR_STARTUP_AUDIO_MANIFEST}
+            --input-manifest
+            ${PFR_STARTUP_INPUT_MANIFEST})
 endfunction()

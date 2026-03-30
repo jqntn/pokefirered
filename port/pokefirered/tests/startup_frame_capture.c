@@ -7,6 +7,7 @@
 
 #include "gba/io_reg.h"
 #include "pfr/core.h"
+#include "pfr/scripted_input.h"
 #include "raylib.h"
 
 #define BMP_HEADER_SIZE 54
@@ -14,7 +15,6 @@
 #define PFR_DEFAULT_SAVE_PATH "pfr_startup_frame_capture.tmp.sav"
 #define PFR_FILENAME_BUFFER_SIZE 256
 #define PFR_LINE_BUFFER_SIZE 512
-#define PFR_MAX_AUTO_START_FRAMES 16
 #define PFR_PATH_BUFFER_SIZE 1024
 
 typedef struct PfrCaptureTarget
@@ -38,8 +38,7 @@ typedef struct PfrOptions
   const char* output_dir;
   const char* manifest_out;
   const char* save_path;
-  uint32_t auto_press_start_frames[PFR_MAX_AUTO_START_FRAMES];
-  size_t auto_press_start_frame_count;
+  PfrScriptedInput scripted_input;
   PfrCaptureList captures;
 } PfrOptions;
 
@@ -378,15 +377,8 @@ pfr_build_image_filename(const PfrCaptureTarget* capture,
 static uint16_t
 pfr_keys_for_frame(const PfrOptions* options, uint32_t frame_index)
 {
-  size_t i;
-
-  for (i = 0; i < options->auto_press_start_frame_count; i++) {
-    if (options->auto_press_start_frames[i] == frame_index) {
-      return START_BUTTON;
-    }
-  }
-
-  return 0;
+  return pfr_scripted_input_keys_for_frame(&options->scripted_input,
+                                           frame_index);
 }
 
 static void
@@ -395,7 +387,8 @@ pfr_print_usage(const char* program_name)
   fprintf(stderr,
           "usage: %s --output-dir DIR [--mode game|demo|sandbox]\n"
           "       [--frame N]... [--frame-manifest PATH]\n"
-          "       [--auto-press-start-frame N]... [--manifest-out PATH]\n"
+          "       [--auto-press-start-frame N]... [--input-manifest PATH]\n"
+          "       [--manifest-out PATH]\n"
           "       [--save-path PATH]\n"
           "manifest lines: name|frame|expected_checksum\n",
           program_name);
@@ -427,6 +420,7 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
 
   memset(options, 0, sizeof(*options));
   options->mode = PFR_MODE_GAME;
+  pfr_scripted_input_init(&options->scripted_input);
 
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--mode") == 0) {
@@ -474,6 +468,7 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
 
       pfr_load_capture_manifest(&options->captures, argv[++i]);
     } else if (strcmp(argv[i], "--auto-press-start-frame") == 0) {
+      char error[256];
       uint32_t frame = 0;
 
       if (i + 1 >= argc || !pfr_parse_u32(argv[++i], &frame)) {
@@ -481,14 +476,27 @@ pfr_parse_options(int argc, char** argv, PfrOptions* options)
         exit(EXIT_FAILURE);
       }
 
-      if (options->auto_press_start_frame_count >= PFR_MAX_AUTO_START_FRAMES) {
-        fprintf(stderr, "too many --auto-press-start-frame values\n");
+      if (!pfr_scripted_input_append(&options->scripted_input,
+                                     frame,
+                                     START_BUTTON,
+                                     error,
+                                     sizeof(error))) {
+        fprintf(stderr, "%s\n", error);
+        exit(EXIT_FAILURE);
+      }
+    } else if (strcmp(argv[i], "--input-manifest") == 0) {
+      char error[256];
+
+      if (i + 1 >= argc) {
+        fprintf(stderr, "missing --input-manifest value\n");
         exit(EXIT_FAILURE);
       }
 
-      options
-        ->auto_press_start_frames[options->auto_press_start_frame_count++] =
-        frame;
+      if (!pfr_scripted_input_load_manifest(
+            &options->scripted_input, argv[++i], error, sizeof(error))) {
+        fprintf(stderr, "%s\n", error);
+        exit(EXIT_FAILURE);
+      }
     } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
       pfr_print_usage(argv[0]);
       exit(EXIT_SUCCESS);
@@ -629,5 +637,6 @@ main(int argc, char** argv)
 
   exit_code = pfr_run_capture(&options, manifest_out);
   pfr_free_captures(&options.captures);
+  pfr_scripted_input_free(&options.scripted_input);
   return exit_code;
 }
