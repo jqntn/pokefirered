@@ -78,12 +78,12 @@ add_custom_command(
     "${PFR_ASSET_ROOT}"
     --out-c
     "${PFR_GENERATED_AUDIO_ASSETS_C}"
-    --song sound/mus_game_freak.s
-    --song sound/mus_intro_fight.s
-    --song sound/mus_title.s
-    --song sound/se_select.s
-    --cry sound/direct_sound_samples/cries/charizard.s
-    --cry sound/direct_sound_samples/cries/nidorino.s
+    --asset sound/mus_game_freak.s
+    --asset sound/mus_intro_fight.s
+    --asset sound/mus_title.s
+    --asset sound/se_select.s
+    --asset sound/direct_sound_samples/cries/charizard.s
+    --asset sound/direct_sound_samples/cries/nidorino.s
   DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/audio_asset_tool.py"
     "${PFR_REPO_ROOT}/sound/MPlayDef.s"

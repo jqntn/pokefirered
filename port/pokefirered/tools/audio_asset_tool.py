@@ -36,16 +36,26 @@ class AudioAssetTool:
     self.song_players = self._parse_song_table(
       self.repo_root / "sound" / "song_table.inc")
 
-  def build(self, out_c: Path, song_args: list[str], cry_args: list[str]) -> None:
-    song_specs = [self._parse_song_arg(arg) for arg in song_args]
-    cry_specs = [self._parse_cry_arg(arg) for arg in cry_args]
+  def build(self, out_c: Path, asset_args: list[str]) -> None:
+    song_specs = []
+    cry_specs = []
+    for arg in asset_args:
+      stem = Path(arg).stem
+      if stem in self.song_players:
+        song_specs.append(self._parse_song_arg(arg))
+      else:
+        cry_specs.append(self._parse_cry_arg(arg))
     songs = [self._assemble_song(spec) for spec in song_specs]
     used_groups, used_tables, used_samples, used_pwaves = self._collect_voice_deps(songs)
-    crys = [{"spec": spec, "sample_rate": sr, "samples": sa}
-            for spec in cry_specs
-            for sr, sa in [self._load_wav_asm(self.asset_root / spec["source"])]]
-    self._write_source(out_c, songs, crys, used_groups, used_tables,
-                       used_samples, used_pwaves)
+    wav_samples = []
+    for name in used_samples:
+      rate, data = self._load_wav_asm(self._wave_name_to_path(name))
+      wav_samples.append({"name": name, "rate": rate, "data": data})
+    for spec in cry_specs:
+      rate, data = self._load_wav_asm(self.asset_root / spec["source"])
+      wav_samples.append({"name": spec["wave_name"], "rate": rate, "data": data})
+    self._write_source(out_c, songs, wav_samples, cry_specs,
+                       used_groups, used_tables, used_pwaves)
 
   def _parse_song_arg(self, arg: str) -> dict:
     symbol = Path(arg).stem
@@ -318,24 +328,19 @@ class AudioAssetTool:
     lines.append("};")
     return lines
 
-  def _write_source(self, out_c: Path, songs: list[dict], crys: list[dict],
-                    groups: list[str], tables: list[str], samples: list[str],
+  def _write_source(self, out_c: Path, songs: list[dict], wav_samples: list[dict],
+                    cry_specs: list[dict], groups: list[str], tables: list[str],
                     pwaves: list[str]) -> None:
     lines = ['#include "constants/songs.h"', '#include "pfr/audio_assets.h"', ""]
-    for sample_name in samples:
-      rate, data = self._load_wav_asm(self._wave_name_to_path(sample_name))
-      lines += self._emit_int8_array(f"sPfrSampleData_{sample_name}", data)
-      lines += [f"static const PfrAudioSample sPfrSample_{sample_name} = {{ sPfrSampleData_{sample_name}, {len(data)}u, {rate}u, 0u, FALSE, NULL }};", ""]
+    for sample in wav_samples:
+      name, rate, data = sample["name"], sample["rate"], sample["data"]
+      lines += self._emit_int8_array(f"sPfrSampleData_{name}", data)
+      lines += [f"static const struct {{ u16 type; u16 status; u32 freq; u32 loopStart; u32 size; s8 data[1]; }} sPfrWave_{name} = {{ 0, 0, {rate}u, 0u, {len(data)}u, {{ 0 }} }};",
+                f"static const PfrAudioSample sPfrSample_{name} = {{ sPfrSampleData_{name}, {len(data)}u, {rate}u, 0u, FALSE, (const struct WaveData*)&sPfrWave_{name} }};", ""]
     for pname in pwaves:
       data = self._load_programmable_wave(pname)
       lines += self._emit_int8_array(f"sPfrPwaveData_{pname}", data)
       lines += [f"static const PfrAudioSample sPfrPwave_{pname} = {{ sPfrPwaveData_{pname}, {len(data)}u, 0u, 0u, TRUE, NULL }};", ""]
-    for cry in crys:
-      spec = cry["spec"]
-      lines += self._emit_int8_array(f"sPfrCryData_{spec['wave_name']}", cry["samples"])
-      lines += [f"static const struct {{ u16 type; u16 status; u32 freq; u32 loopStart; u32 size; s8 data[1]; }} sPfrWave_{spec['wave_name']} = {{ 0, 0, {cry['sample_rate']}u, 0u, {len(cry['samples'])}u, {{ 0 }} }};",
-                f"static const PfrAudioSample sPfrCrySample_{spec['wave_name']} = {{ sPfrCryData_{spec['wave_name']}, {len(cry['samples'])}u, {cry['sample_rate']}u, 0u, FALSE, (const struct WaveData*)&sPfrWave_{spec['wave_name']} }};",
-                ""]
     for table in tables:
       values = self.keysplit_tables[table]
       lines += [f"static const u8 sPfrKeysplit_{table}[128] = {{",
@@ -407,16 +412,15 @@ class AudioAssetTool:
     lines.append(f"const u32 gPfrAudioSongAssetCount = {len(songs)}u;")
     lines.append("")
     lines.append("const PfrCryAsset gPfrAudioCryAssets[] = {")
-    for cry in crys:
-      spec = cry["spec"]
-      lines.append(f"  {{ (const struct WaveData*)&sPfrWave_{spec['wave_name']}, &sPfrCrySample_{spec['wave_name']} }},")
+    for spec in cry_specs:
+      lines.append(f"  {{ (const struct WaveData*)&sPfrWave_{spec['wave_name']}, &sPfrSample_{spec['wave_name']} }},")
     lines.append("};")
-    lines.append(f"const u32 gPfrAudioCryAssetCount = {len(crys)}u;")
+    lines.append(f"const u32 gPfrAudioCryAssetCount = {len(cry_specs)}u;")
     lines.append("")
     lines.append("const struct ToneData gCryTable[] = {")
     reverse = ["const struct ToneData gCryTable_Reverse[] = {"]
-    dummy = crys[0]["spec"]["wave_name"]
-    wave_by_index = {cry["spec"]["species_index"]: cry["spec"]["wave_name"] for cry in crys}
+    dummy = cry_specs[0]["wave_name"]
+    wave_by_index = {spec["species_index"]: spec["wave_name"] for spec in cry_specs}
     for index in range(128 * 4):
       wave = wave_by_index.get(index, dummy)
       lines.append(f"  {{ 0x20, 60, 0, 0, (struct WaveData*)&sPfrWave_{wave}, 0xFF, 0, 0xFF, 0 }},")
@@ -433,15 +437,14 @@ def parse_args() -> argparse.Namespace:
   parser.add_argument("--repo-root", required=True)
   parser.add_argument("--asset-root", required=True)
   parser.add_argument("--out-c", required=True)
-  parser.add_argument("--song", action="append", default=[])
-  parser.add_argument("--cry", action="append", default=[])
+  parser.add_argument("--asset", action="append", default=[])
   return parser.parse_args()
 
 
 def main() -> int:
   args = parse_args()
   AudioAssetTool(Path(args.repo_root), Path(args.asset_root)).build(
-    Path(args.out_c), args.song, args.cry)
+    Path(args.out_c), args.asset)
   return 0
 
 
