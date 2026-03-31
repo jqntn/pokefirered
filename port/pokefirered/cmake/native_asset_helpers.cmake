@@ -18,6 +18,31 @@ function(pfr_generate_native_asset out_var relative_output mode input_file)
   set(${out_var} "${output_file}" PARENT_SCOPE)
 endfunction()
 
+function(pfr_generate_wav_asm out_var relative_output wav_file)
+  set(output_file "${PFR_ASSET_ROOT}/${relative_output}")
+  get_filename_component(output_dir "${output_file}" DIRECTORY)
+
+  add_custom_command(
+    OUTPUT "${output_file}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
+    COMMAND $<TARGET_FILE:wav2agb> "${wav_file}" "${output_file}"
+    DEPENDS wav2agb "${wav_file}")
+  set(${out_var} "${output_file}" PARENT_SCOPE)
+endfunction()
+
+function(pfr_generate_midi_asm out_var relative_output midi_file)
+  set(output_file "${PFR_ASSET_ROOT}/${relative_output}")
+  get_filename_component(output_dir "${output_file}" DIRECTORY)
+
+  add_custom_command(
+    OUTPUT "${output_file}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
+    COMMAND $<TARGET_FILE:mid2agb> "${midi_file}" "${output_file}"
+    WORKING_DIRECTORY "${PFR_REPO_ROOT}"
+    DEPENDS mid2agb "${midi_file}")
+  set(${out_var} "${output_file}" PARENT_SCOPE)
+endfunction()
+
 function(pfr_add_preprocessed_c out_var source_file output_name working_directory)
   set(output_file "${PFR_GENERATED_DIR}/${output_name}")
   add_custom_command(

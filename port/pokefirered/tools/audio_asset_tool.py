@@ -4,59 +4,8 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess
-import wave
 from dataclasses import dataclass
 from pathlib import Path
-
-SONG_SPECS = [
-  {
-    "id": 321,
-    "symbol": "mus_game_freak",
-    "macro": "MUS_GAME_FREAK",
-    "source": "sound/songs/midi/mus_game_freak.mid",
-    "generated": True,
-    "loop": False,
-  },
-  {
-    "id": 277,
-    "symbol": "mus_intro_fight",
-    "macro": "MUS_INTRO_FIGHT",
-    "source": "sound/songs/midi/mus_intro_fight.mid",
-    "generated": True,
-    "loop": False,
-  },
-  {
-    "id": 278,
-    "symbol": "mus_title",
-    "macro": "MUS_TITLE",
-    "source": "sound/songs/midi/mus_title.mid",
-    "generated": True,
-    "loop": True,
-  },
-  {
-    "id": 5,
-    "symbol": "se_select",
-    "macro": "SE_SELECT",
-    "source": "sound/songs/midi/se_select.mid",
-    "generated": True,
-    "loop": False,
-  },
-]
-
-CRY_SPECS = [
-  {
-    "wave_name": "gPfrCryWaveCharizard",
-    "species_index": 5,
-    "source": "sound/direct_sound_samples/cries/charizard.wav",
-  },
-  {
-    "wave_name": "gPfrCryWaveNidorino",
-    "species_index": 32,
-    "source": "sound/direct_sound_samples/cries/nidorino.wav",
-  },
-]
-
 
 @dataclass
 class VoiceEntry:
@@ -74,10 +23,11 @@ class VoiceEntry:
 
 
 class AudioAssetTool:
-  def __init__(self, repo_root: Path, stage_dir: Path, mid2agb: Path):
+  def __init__(self, repo_root: Path, asset_root: Path):
     self.repo_root = repo_root
-    self.stage_dir = stage_dir
-    self.mid2agb = mid2agb
+    self.asset_root = asset_root
+    self.species = self._parse_species_header(
+      self.repo_root / "include" / "constants" / "species.h")
     self.env = self._parse_equ_file(self.repo_root / "sound" / "MPlayDef.s")
     self.voice_groups = self._parse_voice_groups(
       self.repo_root / "sound" / "voice_groups.inc")
@@ -86,26 +36,38 @@ class AudioAssetTool:
     self.song_players = self._parse_song_table(
       self.repo_root / "sound" / "song_table.inc")
 
-  def build(self, out_c: Path, out_h: Path) -> None:
-    songs = [self._assemble_song(spec) for spec in SONG_SPECS]
+  def build(self, out_c: Path, song_args: list[str], cry_args: list[str]) -> None:
+    song_specs = [self._parse_song_arg(arg) for arg in song_args]
+    cry_specs = [self._parse_cry_arg(arg) for arg in cry_args]
+    songs = [self._assemble_song(spec) for spec in song_specs]
     used_groups, used_tables, used_samples, used_pwaves = self._collect_voice_deps(songs)
-    crys = [self._load_cry(spec) for spec in CRY_SPECS]
-    self._write_header(out_h)
+    crys = [{"spec": spec, "sample_rate": sr, "samples": sa}
+            for spec in cry_specs
+            for sr, sa in [self._load_wav_asm(self.asset_root / spec["source"])]]
     self._write_source(out_c, songs, crys, used_groups, used_tables,
                        used_samples, used_pwaves)
 
-  def _prepare_song_asm(self, spec: dict) -> Path:
-    source_path = self.repo_root / spec["source"]
-    output_path = self.stage_dir / f"{spec['symbol']}.s"
+  def _parse_song_arg(self, arg: str) -> dict:
+    symbol = Path(arg).stem
+    song_id, ms, me = self.song_players[symbol]
+    return {"id": song_id, "symbol": symbol, "source": arg,
+            "player_ids": (ms, me)}
 
-    if not spec["generated"]:
-      return source_path
+  def _parse_cry_arg(self, arg: str) -> dict:
+    stem = Path(arg).stem
+    wave_name = f"gPfrCryWave{stem[0].upper()}{stem[1:]}"
+    species_key = f"SPECIES_{stem.upper()}"
+    species_index = self.species[species_key] - 1
+    return {"wave_name": wave_name, "species_index": species_index,
+            "source": arg}
 
-    self.stage_dir.mkdir(parents=True, exist_ok=True)
-    subprocess.run([str(self.mid2agb), str(source_path), str(output_path)],
-                   check=True,
-                   cwd=self.repo_root)
-    return output_path
+  def _parse_species_header(self, path: Path) -> dict[str, int]:
+    mapping: dict[str, int] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+      match = re.match(r"#define\s+(SPECIES_\w+)\s+(\d+)", line)
+      if match:
+        mapping[match.group(1)] = int(match.group(2))
+    return mapping
 
   def _parse_equ_file(self, path: Path) -> dict[str, int]:
     env: dict[str, int] = {}
@@ -117,14 +79,16 @@ class AudioAssetTool:
       env[name] = self._eval_expr(expr, env)
     return env
 
-  def _parse_song_table(self, path: Path) -> dict[str, tuple[int, int]]:
-    mapping: dict[str, tuple[int, int]] = {}
+  def _parse_song_table(self, path: Path) -> dict[str, tuple[int, int, int]]:
+    mapping: dict[str, tuple[int, int, int]] = {}
+    index = 0
     for raw_line in path.read_text(encoding="utf-8").splitlines():
       line = raw_line.split("@", 1)[0].strip()
       if not line.startswith("song "):
         continue
       parts = [part.strip() for part in line[len("song "):].split(",")]
-      mapping[parts[0]] = (int(parts[1]), int(parts[2]))
+      mapping[parts[0]] = (index, int(parts[1]), int(parts[2]))
+      index += 1
     return mapping
 
   def _parse_keysplit_tables(self, path: Path) -> dict[str, list[int]]:
@@ -198,7 +162,7 @@ class AudioAssetTool:
     raise RuntimeError(f"unsupported voice macro {name}")
 
   def _assemble_song(self, spec: dict) -> dict:
-    path = self._prepare_song_asm(spec)
+    path = self.asset_root / spec["source"]
     env = dict(self.env)
     aliases: dict[str, str] = {}
     tracks = []
@@ -257,13 +221,16 @@ class AudioAssetTool:
         reloc["target_offset"] = track["labels"][target]
 
     track_count = header_bytes[0]
+    selected_tracks = [label_map[word] for word in header_words[1:1 + track_count]]
+    has_goto = any(0xb2 in track["bytes"] for track in selected_tracks)
     return {
       "spec": spec,
       "priority": header_bytes[2],
       "reverb": header_bytes[3],
       "voicegroup": aliases.get(header_words[0], header_words[0]),
-      "tracks": [label_map[word] for word in header_words[1:1 + track_count]],
-      "player_ids": self.song_players[spec["symbol"]],
+      "tracks": selected_tracks,
+      "player_ids": spec["player_ids"],
+      "loop": has_goto,
     }
 
   def _collect_voice_deps(self, songs: list[dict]) -> tuple[list[str], list[str], list[str], list[str]]:
@@ -293,21 +260,33 @@ class AudioAssetTool:
 
     return groups, sorted(tables), sorted(samples), sorted(pwaves)
 
-  def _load_wav(self, path: Path) -> tuple[int, list[int]]:
-    with wave.open(str(path), "rb") as handle:
-      channels = handle.getnchannels()
-      sample_width = handle.getsampwidth()
-      sample_rate = handle.getframerate()
-      frames = handle.readframes(handle.getnframes())
-    if sample_width != 1:
-      raise RuntimeError(f"unsupported sample width for {path}")
-    samples = []
-    for index in range(0, len(frames), channels):
-      accum = 0
-      for channel in range(channels):
-        accum += frames[index + channel] - 128
-      samples.append(max(-127, min(127, round(accum / channels))))
-    return sample_rate, samples
+  def _load_wav_asm(self, path: Path) -> tuple[int, list[int]]:
+    words: list[int] = []
+    samples: list[int] = []
+    header_done = False
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+      line = raw_line.split("@", 1)[0].strip()
+      if not line.startswith(".byte") and not line.startswith(".word"):
+        continue
+      if line.startswith(".word"):
+        for token in line[len(".word"):].split(","):
+          token = token.strip()
+          if token:
+            words.append(int(token, 0))
+        continue
+      if not header_done:
+        header_done = True
+        continue
+      for token in line[len(".byte"):].split(","):
+        token = token.strip()
+        if token:
+          value = int(token, 0)
+          if value > 127:
+            value -= 256
+          samples.append(value)
+    sample_rate = words[0] // 1024 if words else 0
+    loop_end = words[2] if len(words) > 2 else len(samples)
+    return sample_rate, samples[:loop_end]
 
   def _load_programmable_wave(self, name: str) -> list[int]:
     sample_number = int(name.split("_")[-1])
@@ -318,13 +297,9 @@ class AudioAssetTool:
       output.append(((byte & 0x0F) - 8) * 16)
     return output
 
-  def _load_cry(self, spec: dict) -> dict:
-    sample_rate, samples = self._load_wav(self.repo_root / spec["source"])
-    return {"spec": spec, "sample_rate": sample_rate, "samples": samples}
-
   def _wave_name_to_path(self, name: str) -> Path:
     suffix = name.removeprefix("DirectSoundWaveData_")
-    return self.repo_root / "sound" / "direct_sound_samples" / f"{suffix}.wav"
+    return self.asset_root / "sound" / "direct_sound_samples" / f"{suffix}.s"
 
   def _eval_tokens(self, text: str, env: dict[str, int]) -> list[int]:
     output = []
@@ -334,16 +309,6 @@ class AudioAssetTool:
 
   def _eval_expr(self, expr: str, env: dict[str, int]) -> int:
     return int(eval(expr.strip(), {"__builtins__": {}}, env))
-
-  def _write_header(self, out_h: Path) -> None:
-    out_h.parent.mkdir(parents=True, exist_ok=True)
-    out_h.write_text(
-      "#ifndef PFR_GENERATED_AUDIO_ASSETS_NATIVE_H\n"
-      "#define PFR_GENERATED_AUDIO_ASSETS_NATIVE_H\n\n"
-      '#include "pfr/audio_assets.h"\n\n'
-      "#endif\n",
-      encoding="utf-8",
-    )
 
   def _emit_int8_array(self, name: str, values: list[int]) -> list[str]:
     lines = [f"static const s8 {name}[] = {{"]
@@ -358,7 +323,7 @@ class AudioAssetTool:
                     pwaves: list[str]) -> None:
     lines = ['#include "constants/songs.h"', '#include "pfr/audio_assets.h"', ""]
     for sample_name in samples:
-      rate, data = self._load_wav(self._wave_name_to_path(sample_name))
+      rate, data = self._load_wav_asm(self._wave_name_to_path(sample_name))
       lines += self._emit_int8_array(f"sPfrSampleData_{sample_name}", data)
       lines += [f"static const PfrAudioSample sPfrSample_{sample_name} = {{ sPfrSampleData_{sample_name}, {len(data)}u, {rate}u, 0u, FALSE, NULL }};", ""]
     for pname in pwaves:
@@ -403,7 +368,7 @@ class AudioAssetTool:
           sample_ref = "NULL"; subgroup = f"sPfrVoiceGroup_{entry.subgroup}"; keysplit = "NULL"; subgroup_count = len(self.voice_groups[entry.subgroup]); kind = "PFR_AUDIO_VOICE_RHYTHM"
         lines.append(f"  {{ {kind}, {entry.base_key}, {entry.pan}, {entry.attack}, {entry.decay}, {entry.sustain}, {entry.release}, {entry.duty}, {sample_ref}, {subgroup}, {keysplit}, {subgroup_count} }},")
       lines += ["};", ""]
-    max_song_id = max(spec["id"] for spec in SONG_SPECS)
+    max_song_id = max(song["spec"]["id"] for song in songs)
     for song in songs:
       symbol = song["spec"]["symbol"]
       for index, track in enumerate(song["tracks"]):
@@ -436,8 +401,8 @@ class AudioAssetTool:
     for song in songs:
       spec = song["spec"]
       ms, _ = song["player_ids"]
-      loop_flag = "TRUE" if spec["loop"] else "FALSE"
-      lines.append(f"  {{ {spec['macro']}, {ms}, {loop_flag}, {len(song['tracks'])}, {song['priority']}, {song['reverb']}, (const struct SongHeader*)&sPfrSongHeader_{spec['symbol']}, sPfrVoiceGroup_{song['voicegroup']}, {len(self.voice_groups[song['voicegroup']])}, sPfrTrackAssets_{spec['symbol']} }},")
+      loop_flag = "TRUE" if song["loop"] else "FALSE"
+      lines.append(f"  {{ {spec['symbol'].upper()}, {ms}, {loop_flag}, {len(song['tracks'])}, {song['priority']}, {song['reverb']}, (const struct SongHeader*)&sPfrSongHeader_{spec['symbol']}, sPfrVoiceGroup_{song['voicegroup']}, {len(self.voice_groups[song['voicegroup']])}, sPfrTrackAssets_{spec['symbol']} }},")
     lines.append("};")
     lines.append(f"const u32 gPfrAudioSongAssetCount = {len(songs)}u;")
     lines.append("")
@@ -466,17 +431,17 @@ class AudioAssetTool:
 def parse_args() -> argparse.Namespace:
   parser = argparse.ArgumentParser()
   parser.add_argument("--repo-root", required=True)
-  parser.add_argument("--stage-dir", required=True)
-  parser.add_argument("--mid2agb", required=True)
+  parser.add_argument("--asset-root", required=True)
   parser.add_argument("--out-c", required=True)
-  parser.add_argument("--out-h", required=True)
+  parser.add_argument("--song", action="append", default=[])
+  parser.add_argument("--cry", action="append", default=[])
   return parser.parse_args()
 
 
 def main() -> int:
   args = parse_args()
-  AudioAssetTool(Path(args.repo_root), Path(args.stage_dir), Path(args.mid2agb)).build(
-    Path(args.out_c), Path(args.out_h))
+  AudioAssetTool(Path(args.repo_root), Path(args.asset_root)).build(
+    Path(args.out_c), args.song, args.cry)
   return 0
 
 
