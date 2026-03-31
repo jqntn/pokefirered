@@ -49,11 +49,11 @@ class AudioAssetTool:
     used_groups, used_tables, used_samples, used_pwaves = self._collect_voice_deps(songs)
     wav_samples = []
     for name in used_samples:
-      rate, data = self._load_wav_asm(self._wave_name_to_path(name))
-      wav_samples.append({"name": name, "rate": rate, "data": data})
+      rate, loop_start, loop_enabled, data = self._load_wav_asm(self._wave_name_to_path(name))
+      wav_samples.append({"name": name, "rate": rate, "loop_start": loop_start, "loop_enabled": loop_enabled, "data": data})
     for spec in cry_specs:
-      rate, data = self._load_wav_asm(self.asset_root / spec["source"])
-      wav_samples.append({"name": spec["wave_name"], "rate": rate, "data": data})
+      rate, loop_start, loop_enabled, data = self._load_wav_asm(self.asset_root / spec["source"])
+      wav_samples.append({"name": spec["wave_name"], "rate": rate, "loop_start": loop_start, "loop_enabled": loop_enabled, "data": data})
     self._write_source(out_c, songs, wav_samples, cry_specs,
                        used_groups, used_tables, used_pwaves)
 
@@ -270,7 +270,8 @@ class AudioAssetTool:
 
     return groups, sorted(tables), sorted(samples), sorted(pwaves)
 
-  def _load_wav_asm(self, path: Path) -> tuple[int, list[int]]:
+  def _load_wav_asm(self, path: Path) -> tuple[int, int, bool, list[int]]:
+    header_bytes: list[int] = []
     words: list[int] = []
     samples: list[int] = []
     header_done = False
@@ -286,6 +287,10 @@ class AudioAssetTool:
         continue
       if not header_done:
         header_done = True
+        for token in line[len(".byte"):].split(","):
+          token = token.strip()
+          if token:
+            header_bytes.append(int(token, 0))
         continue
       for token in line[len(".byte"):].split(","):
         token = token.strip()
@@ -295,8 +300,10 @@ class AudioAssetTool:
             value -= 256
           samples.append(value)
     sample_rate = words[0] // 1024 if words else 0
+    loop_start = words[1] if len(words) > 1 else 0
     loop_end = words[2] if len(words) > 2 else len(samples)
-    return sample_rate, samples[:loop_end]
+    loop_enabled = len(header_bytes) > 3 and (header_bytes[3] & 0x40) != 0
+    return sample_rate, loop_start, loop_enabled, samples[:loop_end]
 
   def _load_programmable_wave(self, name: str) -> list[int]:
     sample_number = int(name.split("_")[-1])
@@ -334,9 +341,11 @@ class AudioAssetTool:
     lines = ['#include "constants/songs.h"', '#include "pfr/audio_assets.h"', ""]
     for sample in wav_samples:
       name, rate, data = sample["name"], sample["rate"], sample["data"]
+      loop_start, loop_enabled = sample["loop_start"], sample["loop_enabled"]
+      loop_flag = "TRUE" if loop_enabled else "FALSE"
       lines += self._emit_int8_array(f"sPfrSampleData_{name}", data)
-      lines += [f"static const struct {{ u16 type; u16 status; u32 freq; u32 loopStart; u32 size; s8 data[1]; }} sPfrWave_{name} = {{ 0, 0, {rate}u, 0u, {len(data)}u, {{ 0 }} }};",
-                f"static const PfrAudioSample sPfrSample_{name} = {{ sPfrSampleData_{name}, {len(data)}u, {rate}u, 0u, FALSE, (const struct WaveData*)&sPfrWave_{name} }};", ""]
+      lines += [f"static const struct {{ u16 type; u16 status; u32 freq; u32 loopStart; u32 size; s8 data[1]; }} sPfrWave_{name} = {{ 0, 0, {rate}u, {loop_start}u, {len(data)}u, {{ 0 }} }};",
+                f"static const PfrAudioSample sPfrSample_{name} = {{ sPfrSampleData_{name}, {len(data)}u, {rate}u, {loop_start}u, {loop_flag}, (const struct WaveData*)&sPfrWave_{name} }};", ""]
     for pname in pwaves:
       data = self._load_programmable_wave(pname)
       lines += self._emit_int8_array(f"sPfrPwaveData_{pname}", data)
