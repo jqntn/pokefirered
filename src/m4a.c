@@ -3,6 +3,7 @@
 
 extern const u8 gCgb3Vol[];
 
+#ifndef PFR_PORT
 #define BSS_CODE __attribute__((section(".bss.code")))
 
 BSS_CODE ALIGNED(4) char SoundMainRAM_Buffer[0x800] = {0};
@@ -19,6 +20,7 @@ COMMON_DATA struct MusicPlayerInfo gMPlayInfo_SE1 = {0};
 COMMON_DATA struct MusicPlayerInfo gMPlayInfo_SE2 = {0};
 COMMON_DATA u8 gMPlayMemAccArea[0x10] = {0};
 COMMON_DATA struct MusicPlayerInfo gMPlayInfo_SE3 = {0};
+#endif
 
 u32 MidiKeyToFreq(struct WaveData *wav, u8 key, u8 fineAdjust)
 {
@@ -41,9 +43,11 @@ u32 MidiKeyToFreq(struct WaveData *wav, u8 key, u8 fineAdjust)
     return umul3232H32(wav->freq, val1 + umul3232H32(val2 - val1, fineAdjustShifted));
 }
 
+#ifndef PFR_PORT
 void UnusedDummyFunc(void)
 {
 }
+#endif
 
 void MPlayContinue(struct MusicPlayerInfo *mplayInfo)
 {
@@ -67,6 +71,7 @@ void MPlayFadeOut(struct MusicPlayerInfo *mplayInfo, u16 speed)
     }
 }
 
+#ifndef PFR_PORT
 void m4aSoundInit(void)
 {
     s32 i;
@@ -103,7 +108,9 @@ void m4aSoundMain(void)
 {
     SoundMain();
 }
+#endif /* !PFR_PORT */
 
+#ifndef PFR_PORT
 void m4aSongNumStart(u16 n)
 {
     const struct MusicPlayer *mplayTable = gMPlayTable;
@@ -253,7 +260,9 @@ void m4aMPlayImmInit(struct MusicPlayerInfo *mplayInfo)
         track++;
     }
 }
+#endif /* !PFR_PORT: m4aSongNum*..m4aMPlayImmInit */
 
+#ifndef PFR_PORT
 void MPlayExtender(struct CgbChannel *cgbChans)
 {
     struct SoundInfo *soundInfo;
@@ -486,12 +495,12 @@ void m4aSoundMode(u32 mode)
 
     soundInfo->ident = ID_NUMBER;
 }
+#endif /* !PFR_PORT: MPlayExtender..m4aSoundMode */
 
 void SoundClear(void)
 {
     struct SoundInfo *soundInfo = SOUND_INFO_PTR;
     s32 i;
-    void *chan;
 
     if (soundInfo->ident != ID_NUMBER)
         return;
@@ -499,33 +508,34 @@ void SoundClear(void)
     soundInfo->ident++;
 
     i = MAX_DIRECTSOUND_CHANNELS;
-    chan = &soundInfo->chans[0];
-
-    while (i > 0)
     {
-        ((struct SoundChannel *)chan)->statusFlags = 0;
-        i--;
-        chan = (void *)((s32)chan + sizeof(struct SoundChannel));
+        struct SoundChannel *chan = &soundInfo->chans[0];
+        while (i > 0)
+        {
+            chan->statusFlags = 0;
+            i--;
+            chan++;
+        }
     }
 
-    chan = soundInfo->cgbChans;
-
-    if (chan)
+    if (soundInfo->cgbChans)
     {
+        struct CgbChannel *cgbChan = soundInfo->cgbChans;
         i = 1;
 
         while (i <= 4)
         {
             soundInfo->CgbOscOff(i);
-            ((struct CgbChannel *)chan)->statusFlags = 0;
+            cgbChan->statusFlags = 0;
             i++;
-            chan = (void *)((s32)chan + sizeof(struct CgbChannel));
+            cgbChan++;
         }
     }
 
     soundInfo->ident = ID_NUMBER;
 }
 
+#ifndef PFR_PORT
 void m4aSoundVSyncOff(void)
 {
     struct SoundInfo *soundInfo = SOUND_INFO_PTR;
@@ -561,6 +571,7 @@ void m4aSoundVSyncOn(void)
     soundInfo->pcmDmaCounter = 0;
     soundInfo->ident = ident - 10;
 }
+#endif /* !PFR_PORT */
 
 void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *tracks, u8 trackCount)
 {
@@ -665,6 +676,7 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
     }
 }
 
+#ifndef PFR_PORT
 void m4aMPlayStop(struct MusicPlayerInfo *mplayInfo)
 {
     s32 i;
@@ -688,6 +700,7 @@ void m4aMPlayStop(struct MusicPlayerInfo *mplayInfo)
 
     mplayInfo->ident = ID_NUMBER;
 }
+#endif /* !PFR_PORT: m4aMPlayStop */
 
 void FadeOutBody(struct MusicPlayerInfo *mplayInfo)
 {
@@ -807,6 +820,7 @@ void TrkVolPitSet(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *tr
     track->flags &= ~(MPT_FLG_PITSET | MPT_FLG_VOLSET);
 }
 
+#ifndef PFR_PORT
 u32 MidiKeyToCgbFreq(u8 chanNum, u8 key, u8 fineAdjust)
 {
     if (chanNum == 4)
@@ -1230,7 +1244,9 @@ void CgbSound(void)
         channels->modify = 0;
     }
 }
+#endif /* !PFR_PORT: MidiKeyToCgbFreq..CgbSound */
 
+#ifndef PFR_PORT
 void m4aMPlayTempoControl(struct MusicPlayerInfo *mplayInfo, u16 tempo)
 {
     if (mplayInfo->ident == ID_NUMBER)
@@ -1344,6 +1360,7 @@ void m4aMPlayPanpotControl(struct MusicPlayerInfo *mplayInfo, u16 trackBits, s8 
 
     mplayInfo->ident = ID_NUMBER;
 }
+#endif /* !PFR_PORT: m4aMPlayTempoControl..m4aMPlayPitchControl */
 
 void ClearModM(struct MusicPlayerTrack *track)
 {
@@ -1356,6 +1373,7 @@ void ClearModM(struct MusicPlayerTrack *track)
         track->flags |= MPT_FLG_VOLCHG;
 }
 
+#ifndef PFR_PORT
 void m4aMPlayModDepthSet(struct MusicPlayerInfo *mplayInfo, u16 trackBits, u8 modDepth)
 {
     s32 i;
@@ -1427,6 +1445,7 @@ void m4aMPlayLFOSpeedSet(struct MusicPlayerInfo *mplayInfo, u16 trackBits, u8 lf
 
     mplayInfo->ident = ID_NUMBER;
 }
+#endif /* !PFR_PORT: m4aMPlayTempoControl..m4aMPlayLFOSpeedSet */
 
 #define MEMACC_COND_JUMP(cond) \
 if (cond)                      \
@@ -1657,6 +1676,7 @@ void DummyFunc(void)
 {
 }
 
+#ifndef PFR_PORT
 struct MusicPlayerInfo *SetPokemonCryTone(struct ToneData *tone)
 {
     u32 maxClock = 0;
@@ -1779,3 +1799,4 @@ void SetPokemonCryPriority(u8 val)
 {
     gPokemonCrySong.priority = val;
 }
+#endif /* !PFR_PORT: SetPokemonCry* */

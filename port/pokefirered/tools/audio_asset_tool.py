@@ -343,9 +343,13 @@ class AudioAssetTool:
       name, rate, data = sample["name"], sample["rate"], sample["data"]
       loop_start, loop_enabled = sample["loop_start"], sample["loop_enabled"]
       loop_flag = "TRUE" if loop_enabled else "FALSE"
-      lines += self._emit_int8_array(f"sPfrSampleData_{name}", data)
-      lines += [f"static const struct {{ u16 type; u16 status; u32 freq; u32 loopStart; u32 size; s8 data[1]; }} sPfrWave_{name} = {{ 0, 0, {rate}u, {loop_start}u, {len(data)}u, {{ 0 }} }};",
-                f"static const PfrAudioSample sPfrSample_{name} = {{ sPfrSampleData_{name}, {len(data)}u, {rate}u, {loop_start}u, {loop_flag}, (const struct WaveData*)&sPfrWave_{name} }};", ""]
+      status = "0xC000u" if loop_enabled else "0"
+      lines += [f"static const struct {{ u16 type; u16 status; u32 freq; u32 loopStart; u32 size; s8 data[{len(data)}]; }} sPfrWave_{name} = {{ 0, {status}, {rate}u, {loop_start}u, {len(data)}u, {{"]
+      for index in range(0, len(data), 24):
+        row = ", ".join(str(value) for value in data[index:index + 24])
+        lines.append(f"  {row},")
+      lines += ["}};",
+                f"static const PfrAudioSample sPfrSample_{name} = {{ sPfrWave_{name}.data, {len(data)}u, {rate}u, {loop_start}u, {loop_flag}, (const struct WaveData*)&sPfrWave_{name} }};", ""]
     for pname in pwaves:
       data = self._load_programmable_wave(pname)
       lines += self._emit_int8_array(f"sPfrPwaveData_{pname}", data)
