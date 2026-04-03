@@ -305,12 +305,7 @@ struct MusicPlayerTrack
     u8 pseudoEchoLength;
     struct SoundChannel *chan;
     struct ToneData tone;
-#ifdef PFR_PORT
-    void *pfrVoice;
-    u8 gap2[10 - sizeof(void *)];
-#else
     u8 gap[10];
-#endif
     u16 unk_3A;
     u32 unk_3C;
     u8 *cmdPtr;

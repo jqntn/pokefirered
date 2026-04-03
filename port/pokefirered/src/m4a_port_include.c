@@ -36,9 +36,6 @@
 #define SetPokemonCryStereo pfr_unused_SetPokemonCryStereo
 #define SetPokemonCryPriority pfr_unused_SetPokemonCryPriority
 
-#ifdef PFR_PORT
-#undef PFR_PORT
-#endif
 #include "../../../src/m4a.c"
 
 #undef SetPokemonCryPriority

@@ -3,7 +3,6 @@
 // Some of these functions have different signatures, so we need to make this
 // an array of void pointers or a struct. It's simpler to just make it an array
 // for now.
-#ifndef PFR_PORT
 void *const gMPlayJumpTableTemplate[] =
 {
     ply_fine,
@@ -43,7 +42,6 @@ void *const gMPlayJumpTableTemplate[] =
     RealClearChain,
     SoundMainBTM,
 };
-#endif /* !PFR_PORT */
 
 // This is a table of deltas between sample values in compressed PCM data.
 const s8 gDeltaEncodingTable[] =
@@ -257,7 +255,6 @@ const u8 gClockTable[] =
 #define EOT    0xce
 #define TIE    0xcf
 
-#ifndef PFR_PORT
 const struct PokemonCrySong gPokemonCrySongTemplate =
 {
     1, // track count
@@ -290,7 +287,6 @@ const struct PokemonCrySong gPokemonCrySongTemplate =
     60, // unk value
     {EOT, FINE} // end
 };
-#endif /* !PFR_PORT */
 
 const XcmdFunc gXcmdTable[] =
 {

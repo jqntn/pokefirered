@@ -63,7 +63,6 @@ function(pfr_define_native_runtime_targets)
     pfr_core
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
            ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
-  target_compile_definitions(pfr_core PRIVATE PFR_PORT)
   pfr_apply_native_warnings(pfr_core)
 
   if(NOT MSVC)
@@ -74,7 +73,7 @@ function(pfr_define_native_runtime_targets)
       ../../src/random.c
       ../../src/malloc.c
       src/sound_runtime.c
-      src/m4a_tables_port_include.c
+      ../../src/m4a_tables.c
       ../../src/string_util.c
       ${PFR_GENERATED_TEXT}
       ../../src/blend_palette.c
@@ -108,7 +107,6 @@ function(pfr_define_native_runtime_targets)
             ENGLISH
             NDEBUG
             BUGFIX
-            PFR_PORT
             $<$<C_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>)
 
   if(NOT MSVC)
