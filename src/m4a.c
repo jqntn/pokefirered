@@ -513,6 +513,7 @@ void SoundClear(void)
     if (chan)
     {
         i = 1;
+
         while (i <= 4)
         {
             soundInfo->CgbOscOff(i);
