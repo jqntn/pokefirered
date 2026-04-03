@@ -13,31 +13,9 @@
 #define CgbOscOff pfr_unused_CgbOscOff
 #define CgbModVol pfr_unused_CgbModVol
 #define CgbSound pfr_unused_CgbSound
-#define SetPokemonCryTone pfr_unused_SetPokemonCryTone
-#define SetPokemonCryVolume pfr_unused_SetPokemonCryVolume
-#define SetPokemonCryPanpot pfr_unused_SetPokemonCryPanpot
-#define SetPokemonCryPitch pfr_unused_SetPokemonCryPitch
-#define SetPokemonCryLength pfr_unused_SetPokemonCryLength
-#define SetPokemonCryRelease pfr_unused_SetPokemonCryRelease
-#define SetPokemonCryProgress pfr_unused_SetPokemonCryProgress
-#define IsPokemonCryPlaying pfr_unused_IsPokemonCryPlaying
-#define SetPokemonCryChorus pfr_unused_SetPokemonCryChorus
-#define SetPokemonCryStereo pfr_unused_SetPokemonCryStereo
-#define SetPokemonCryPriority pfr_unused_SetPokemonCryPriority
 
 #include "../../../src/m4a.c"
 
-#undef SetPokemonCryPriority
-#undef SetPokemonCryStereo
-#undef SetPokemonCryChorus
-#undef IsPokemonCryPlaying
-#undef SetPokemonCryProgress
-#undef SetPokemonCryRelease
-#undef SetPokemonCryLength
-#undef SetPokemonCryPitch
-#undef SetPokemonCryPanpot
-#undef SetPokemonCryVolume
-#undef SetPokemonCryTone
 #undef CgbSound
 #undef CgbModVol
 #undef CgbOscOff

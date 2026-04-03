@@ -474,12 +474,6 @@ class AudioAssetTool:
     lines.append("};")
     lines.append(f"const u32 gPfrAudioSongAssetCount = {len(songs)}u;")
     lines.append("")
-    lines.append("const PfrCryAsset gPfrAudioCryAssets[] = {")
-    for spec in cry_specs:
-      lines.append(f"  {{ (const struct WaveData*)&sPfrWave_{spec['wave_name']}, &sPfrSample_{spec['wave_name']} }},")
-    lines.append("};")
-    lines.append(f"const u32 gPfrAudioCryAssetCount = {len(cry_specs)}u;")
-    lines.append("")
     lines.append("const struct ToneData gCryTable[] = {")
     reverse = ["const struct ToneData gCryTable_Reverse[] = {"]
     dummy = cry_specs[0]["wave_name"]

@@ -27,8 +27,6 @@ MidiKeyToFreq(struct WaveData* wav, u8 key, u8 fineAdjust);
 extern const PfrAudioSongAsset*
 pfr_audio_song_asset_for_header(const struct SongHeader* song_header);
 extern struct CgbChannel gCgbChans[];
-extern void
-pfr_audio_runtime_stop_cry(void);
 
 STATIC_ASSERT(sizeof(((struct MusicPlayerTrack*)0)->gap) >= sizeof(void*),
               MusicPlayerTrackGapCanHoldPortVoice);
@@ -433,6 +431,7 @@ RealClearChain(struct SoundChannel* chan)
 void
 TrackStop(struct MusicPlayerInfo* mplayInfo, struct MusicPlayerTrack* track)
 {
+  (void)mplayInfo;
   struct SoundChannel* chan = track->chan;
 
   while (chan != NULL) {
@@ -445,11 +444,6 @@ TrackStop(struct MusicPlayerInfo* mplayInfo, struct MusicPlayerTrack* track)
 
     RealClearChain(chan);
     chan = next;
-  }
-
-  if (mplayInfo >= gPokemonCryMusicPlayers &&
-      mplayInfo < gPokemonCryMusicPlayers + MAX_POKEMON_CRIES) {
-    pfr_audio_runtime_stop_cry();
   }
 }
 

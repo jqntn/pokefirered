@@ -21,26 +21,7 @@ extern const u8 gCgb3Vol[];
 enum
 {
   PFR_AUDIO_FRAMES_PER_VBLANK = 224,
-  PFR_CRY_DEFAULT_PITCH = 15360,
-  PFR_CRY_DEFAULT_LENGTH = 140,
 };
-
-typedef struct PfrCryRuntime
-{
-  const PfrCryAsset* asset;
-  double frame_position;
-  double frame_step;
-  uint32_t frame_limit;
-  uint32_t frames_played;
-  uint8_t volume;
-  uint16_t length;
-  uint8_t release;
-  uint8_t priority;
-  int8_t pan;
-  int8_t chorus;
-  bool reverse;
-  bool active;
-} PfrCryRuntime;
 
 extern void
 SoundMain(void);
@@ -50,14 +31,6 @@ extern void
 MPlayExtender(struct CgbChannel*);
 extern void
 MPlayOpen(struct MusicPlayerInfo*, struct MusicPlayerTrack*, u8);
-extern void
-MPlayStart(struct MusicPlayerInfo*, struct SongHeader*);
-extern void
-MPlayContinue(struct MusicPlayerInfo*);
-extern void
-MPlayFadeOut(struct MusicPlayerInfo*, u16);
-extern void
-TrackStop(struct MusicPlayerInfo*, struct MusicPlayerTrack*);
 extern void
 DummyFunc(void);
 extern void
@@ -83,21 +56,12 @@ const struct MusicPlayer gMPlayTable[] = {
   { &gMPlayInfo_SE3, sMPlayTrackSe3, 1, 0 },
 };
 
-static PfrCryRuntime sCryRuntime;
 static bool8 sVSyncEnabled;
-static bool8 sCryStereo;
-static uint16_t sCryPitch;
-static uint16_t sCryLength;
-static uint8_t sCryRelease;
-static uint8_t sCryVolume;
-static uint8_t sCryPriority;
-static int8_t sCryPan;
-static int8_t sCryChorus;
 static const struct SongHeader* sObservedSeHeaders[3];
 static u32 sObservedSeClocks[3];
 static bool8 sObservedSeActive[3];
-static bool8 sObservedCryActive;
-static uint32_t sObservedCryFramesPlayed;
+static u32 sObservedCryClocks[MAX_POKEMON_CRIES];
+static bool8 sObservedCryActive[MAX_POKEMON_CRIES];
 
 static int16_t
 pfr_clamp16(int32_t v)
@@ -133,20 +97,6 @@ pfr_audio_song_asset_for_id(u16 song_id)
   for (i = 0; i < gPfrAudioSongAssetCount; i++) {
     if (gPfrAudioSongAssets[i].song_id == song_id) {
       return &gPfrAudioSongAssets[i];
-    }
-  }
-
-  return NULL;
-}
-
-const PfrCryAsset*
-pfr_audio_cry_asset_for_wave(const struct WaveData* wave)
-{
-  size_t i;
-
-  for (i = 0; i < gPfrAudioCryAssetCount; i++) {
-    if (gPfrAudioCryAssets[i].wave == wave) {
-      return &gPfrAudioCryAssets[i];
     }
   }
 
@@ -412,70 +362,6 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
 }
 
 void
-pfr_audio_runtime_stop_cry(void)
-{
-  memset(&sCryRuntime, 0, sizeof(sCryRuntime));
-  gPokemonCryMusicPlayers[0].status = 0;
-}
-
-static void
-pfr_audio_mix_cry(int16_t* output, u32 numSamples)
-{
-  u32 frame;
-  const PfrAudioSample* asset_sample;
-  double left_gain, right_gain;
-  int clamped;
-
-  if (!sCryRuntime.active || sCryRuntime.asset == NULL) {
-    return;
-  }
-
-  asset_sample = sCryRuntime.asset->sample;
-  if (asset_sample == NULL || asset_sample->sample_count == 0) {
-    pfr_audio_runtime_stop_cry();
-    return;
-  }
-
-  clamped = sCryStereo ? sCryRuntime.pan : 0;
-  if (clamped < -64) {
-    clamped = -64;
-  }
-  if (clamped > 63) {
-    clamped = 63;
-  }
-  right_gain =
-    ((double)(clamped + 64) / 127.0) * ((double)sCryRuntime.volume / 127.0);
-  left_gain =
-    ((double)(63 - clamped) / 127.0) * ((double)sCryRuntime.volume / 127.0);
-
-  for (frame = 0; frame < numSamples; frame++) {
-    double sample;
-    s32 sL, sR;
-
-    if (sCryRuntime.frames_played >= sCryRuntime.frame_limit ||
-        sCryRuntime.frame_position < 0.0 ||
-        sCryRuntime.frame_position >= asset_sample->sample_count) {
-      pfr_audio_runtime_stop_cry();
-      return;
-    }
-
-    sample =
-      (double)asset_sample->samples[(uint32_t)sCryRuntime.frame_position] /
-      127.0;
-    sL = (s32)(sample * left_gain * 32767.0);
-    sR = (s32)(sample * right_gain * 32767.0);
-
-    output[frame * 2 + 0] = pfr_clamp16(output[frame * 2 + 0] + sL);
-    output[frame * 2 + 1] = pfr_clamp16(output[frame * 2 + 1] + sR);
-
-    sCryRuntime.frame_position += sCryRuntime.frame_step;
-    sCryRuntime.frames_played++;
-  }
-
-  gPokemonCryMusicPlayers[0].status = MUSICPLAYER_STATUS_TRACK;
-}
-
-void
 SampleFreqSet(u32 freq)
 {
   (void)freq;
@@ -539,26 +425,21 @@ m4aSoundInit(void)
   memset(gPokemonCryTracks,
          0,
          sizeof(struct MusicPlayerTrack) * MAX_POKEMON_CRIES * 2);
-  MPlayOpen(&gPokemonCryMusicPlayers[0], &gPokemonCryTracks[0], 2);
-  MPlayOpen(&gPokemonCryMusicPlayers[1], &gPokemonCryTracks[2], 2);
-  gPokemonCryTracks[0].chan = 0;
-  gPokemonCryTracks[2].chan = 0;
-  memset(&sCryRuntime, 0, sizeof(sCryRuntime));
+
+  for (u32 i = 0; i < MAX_POKEMON_CRIES; i++) {
+    struct MusicPlayerInfo* mplayInfo = &gPokemonCryMusicPlayers[i];
+    struct MusicPlayerTrack* track = &gPokemonCryTracks[i * 2];
+
+    MPlayOpen(mplayInfo, track, 2);
+    track->chan = 0;
+  }
 
   sVSyncEnabled = FALSE;
-  sCryStereo = FALSE;
-  sCryPitch = PFR_CRY_DEFAULT_PITCH;
-  sCryLength = PFR_CRY_DEFAULT_LENGTH;
-  sCryRelease = 0;
-  sCryVolume = CRY_VOLUME;
-  sCryPriority = CRY_PRIORITY_NORMAL;
-  sCryPan = 0;
-  sCryChorus = 0;
   memset((void*)sObservedSeHeaders, 0, sizeof(sObservedSeHeaders));
   memset(sObservedSeClocks, 0, sizeof(sObservedSeClocks));
   memset(sObservedSeActive, 0, sizeof(sObservedSeActive));
-  sObservedCryActive = FALSE;
-  sObservedCryFramesPlayed = 0;
+  memset(sObservedCryClocks, 0, sizeof(sObservedCryClocks));
+  memset(sObservedCryActive, 0, sizeof(sObservedCryActive));
 }
 
 void
@@ -570,7 +451,6 @@ m4aSoundMain(void)
 
   pfr_audio_mix_channels(&gSoundInfo, output, PFR_AUDIO_FRAMES_PER_VBLANK);
   pfr_audio_mix_cgb_channels(&gSoundInfo, output, PFR_AUDIO_FRAMES_PER_VBLANK);
-  pfr_audio_mix_cry(output, PFR_AUDIO_FRAMES_PER_VBLANK);
 
   pfr_audio_queue_source_frames(output, PFR_AUDIO_FRAMES_PER_VBLANK);
 }
@@ -601,117 +481,11 @@ SpeciesToCryId(u16 species)
   return species;
 }
 
-struct MusicPlayerInfo*
-SetPokemonCryTone(struct ToneData* tone)
-{
-  const PfrCryAsset* asset = pfr_audio_cry_asset_for_wave(tone->wav);
-  double pitch_scale = (double)sCryPitch / (double)PFR_CRY_DEFAULT_PITCH;
-
-  if (asset == NULL || asset->sample == NULL) {
-    pfr_audio_runtime_stop_cry();
-    return &gPokemonCryMusicPlayers[0];
-  }
-
-  sCryRuntime.asset = asset;
-  sCryRuntime.frame_position =
-    (tone->type == 0x30) ? (double)(asset->sample->sample_count - 1) : 0.0;
-  sCryRuntime.frame_step = (tone->type == 0x30) ? -pitch_scale : pitch_scale;
-  sCryRuntime.frame_limit =
-    (asset->sample->sample_count *
-     (uint32_t)(sCryLength == 0 ? PFR_CRY_DEFAULT_LENGTH : sCryLength)) /
-    PFR_CRY_DEFAULT_LENGTH;
-  if (sCryRuntime.frame_limit == 0 ||
-      sCryRuntime.frame_limit > asset->sample->sample_count) {
-    sCryRuntime.frame_limit = asset->sample->sample_count;
-  }
-  sCryRuntime.frames_played = 0;
-  sCryRuntime.volume = sCryVolume;
-  sCryRuntime.length = sCryLength;
-  sCryRuntime.release = sCryRelease;
-  sCryRuntime.priority = sCryPriority;
-  sCryRuntime.pan = sCryPan;
-  sCryRuntime.chorus = sCryChorus;
-  sCryRuntime.reverse = tone->type == 0x30;
-  sCryRuntime.active = true;
-  gPokemonCryMusicPlayers[0].ident = ID_NUMBER;
-  gPokemonCryMusicPlayers[0].trackCount = 1;
-  gPokemonCryMusicPlayers[0].status = MUSICPLAYER_STATUS_TRACK;
-  return &gPokemonCryMusicPlayers[0];
-}
-
-void
-SetPokemonCryVolume(u8 val)
-{
-  sCryVolume = val;
-}
-
-void
-SetPokemonCryPanpot(s8 val)
-{
-  sCryPan = val;
-}
-
-void
-SetPokemonCryPitch(s16 val)
-{
-  sCryPitch = (uint16_t)val;
-}
-
-void
-SetPokemonCryLength(u16 val)
-{
-  sCryLength = val;
-}
-
-void
-SetPokemonCryRelease(u8 val)
-{
-  sCryRelease = val;
-}
-
-void
-SetPokemonCryProgress(u32 val)
-{
-  (void)val;
-}
-
-bool32
-IsPokemonCryPlaying(struct MusicPlayerInfo* mplayInfo)
-{
-  (void)mplayInfo;
-  return sCryRuntime.active;
-}
-
-void
-SetPokemonCryChorus(s8 val)
-{
-  sCryChorus = val;
-}
-
-void
-SetPokemonCryStereo(u32 val)
-{
-  sCryStereo = val ? TRUE : FALSE;
-
-  if (val) {
-    gSoundInfo.mode &= (u8)~1;
-  } else {
-    gSoundInfo.mode |= 1;
-  }
-}
-
-void
-SetPokemonCryPriority(u8 val)
-{
-  sCryPriority = val;
-}
-
 void
 ClearPokemonCrySongs(void)
 {
-  memset(
-    gPokemonCrySongs, 0, sizeof(struct PokemonCrySong) * MAX_POKEMON_CRIES);
-  pfr_audio_runtime_stop_cry();
+  CpuFill16(
+    0, gPokemonCrySongs, MAX_POKEMON_CRIES * sizeof(struct PokemonCrySong));
 }
 
 u16
@@ -775,11 +549,26 @@ pfr_stub_take_se(u16* songNum)
 bool8
 pfr_stub_take_cry(void)
 {
-  bool8 active = sCryRuntime.active;
-  bool8 started = active && (!sObservedCryActive || sCryRuntime.frames_played <
-                                                      sObservedCryFramesPlayed);
+  u32 i;
 
-  sObservedCryActive = active;
-  sObservedCryFramesPlayed = sCryRuntime.frames_played;
-  return started;
+  for (i = 0; i < MAX_POKEMON_CRIES; i++) {
+    struct MusicPlayerInfo* mplay = &gPokemonCryMusicPlayers[i];
+    bool32 active = IsPokemonCryPlaying(mplay);
+
+    if (!active) {
+      sObservedCryClocks[i] = mplay->clock;
+      sObservedCryActive[i] = FALSE;
+      continue;
+    }
+
+    if (!sObservedCryActive[i] || mplay->clock < sObservedCryClocks[i]) {
+      sObservedCryClocks[i] = mplay->clock;
+      sObservedCryActive[i] = TRUE;
+      return TRUE;
+    }
+
+    sObservedCryClocks[i] = mplay->clock;
+  }
+
+  return FALSE;
 }

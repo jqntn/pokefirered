@@ -78,17 +78,8 @@ typedef struct PfrAudioSongAsset
   const PfrAudioTrackAsset* tracks;
 } PfrAudioSongAsset;
 
-typedef struct PfrCryAsset
-{
-  const struct WaveData* wave;
-  const PfrAudioSample* sample;
-} PfrCryAsset;
-
 extern const PfrAudioSongAsset gPfrAudioSongAssets[];
 extern const u32 gPfrAudioSongAssetCount;
-
-extern const PfrCryAsset gPfrAudioCryAssets[];
-extern const u32 gPfrAudioCryAssetCount;
 
 extern const struct ToneData gCryTable[];
 extern const struct ToneData gCryTable_Reverse[];
@@ -97,7 +88,5 @@ const PfrAudioSongAsset*
 pfr_audio_song_asset_for_header(const struct SongHeader* song_header);
 const PfrAudioSongAsset*
 pfr_audio_song_asset_for_id(u16 song_id);
-const PfrCryAsset*
-pfr_audio_cry_asset_for_wave(const struct WaveData* wave);
 
 #endif
