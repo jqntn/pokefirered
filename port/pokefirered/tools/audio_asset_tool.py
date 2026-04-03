@@ -10,14 +10,16 @@ from pathlib import Path
 @dataclass
 class VoiceEntry:
   kind: str
-  base_key: int = 60
-  pan: int = 0
+  type_value: int = 0
+  key: int = 60
+  length: int = 0
+  pan_sweep: int = 0
   ref: str | None = None
   attack: int = 0
   decay: int = 0
   sustain: int = 15
   release: int = 0
-  duty: int = 0
+  wav_value: int = 0
   subgroup: str | None = None
   keysplit: str | None = None
 
@@ -150,25 +152,46 @@ class AudioAssetTool:
 
   def _parse_voice_entry(self, name: str, args: list[str]) -> VoiceEntry:
     if name in {"voice_directsound", "voice_directsound_alt", "voice_directsound_no_resample"}:
-      kind = "directsound_no_resample" if name.endswith("no_resample") else "directsound"
-      return VoiceEntry(kind, int(args[0]), int(args[1]), args[2], int(args[3]),
+      if name == "voice_directsound_no_resample":
+        type_value = 0x08
+      elif name == "voice_directsound_alt":
+        type_value = 0x10
+      else:
+        type_value = 0x00
+      pan = int(args[1])
+      return VoiceEntry("directsound", type_value, int(args[0]), 0,
+                        0x80 | pan if pan != 0 else 0, args[2], int(args[3]),
                         int(args[4]), int(args[5]), int(args[6]))
     if name in {"voice_square_1", "voice_square_1_alt"}:
-      return VoiceEntry("square1", int(args[0]), int(args[1]), None, int(args[4]),
-                        int(args[5]), int(args[6]), int(args[7]), int(args[3]))
+      length = int(args[1])
+      return VoiceEntry("square1", 0x09 if name.endswith("_alt") else 0x01,
+                        int(args[0]), 0x80 | length if length != 0 else 0,
+                        int(args[2]), None, int(args[4]), int(args[5]),
+                        int(args[6]), int(args[7]), int(args[3]))
     if name in {"voice_square_2", "voice_square_2_alt"}:
-      return VoiceEntry("square2", int(args[0]), int(args[1]), None, int(args[3]),
-                        int(args[4]), int(args[5]), int(args[6]), int(args[2]))
+      length = int(args[1])
+      return VoiceEntry("square2", 0x0A if name.endswith("_alt") else 0x02,
+                        int(args[0]), 0x80 | length if length != 0 else 0, 0,
+                        None, int(args[3]), int(args[4]), int(args[5]),
+                        int(args[6]), int(args[2]))
     if name in {"voice_programmable_wave", "voice_programmable_wave_alt"}:
-      return VoiceEntry("programmable_wave", int(args[0]), int(args[1]), args[2],
-                        int(args[3]), int(args[4]), int(args[5]), int(args[6]))
+      length = int(args[1])
+      return VoiceEntry("programmable_wave", 0x0B if name.endswith("_alt") else 0x03,
+                        int(args[0]), 0x80 | length if length != 0 else 0, 0,
+                        args[2], int(args[3]), int(args[4]), int(args[5]),
+                        int(args[6]))
     if name in {"voice_noise", "voice_noise_alt"}:
-      return VoiceEntry("noise", int(args[0]), int(args[1]), None, int(args[3]),
-                        int(args[4]), int(args[5]), int(args[6]), int(args[2]))
+      length = int(args[1])
+      return VoiceEntry("noise", 0x0C if name.endswith("_alt") else 0x04,
+                        int(args[0]), 0x80 | length if length != 0 else 0, 0,
+                        None, int(args[3]), int(args[4]), int(args[5]),
+                        int(args[6]), int(args[2]))
     if name == "voice_keysplit":
-      return VoiceEntry("keysplit", subgroup=args[0], keysplit=args[1])
+      return VoiceEntry("keysplit", 0x40, 0, 0, 0, None, 0, 0, 0, 0, 0,
+                        args[0], args[1])
     if name == "voice_keysplit_all":
-      return VoiceEntry("rhythm", subgroup=args[0])
+      return VoiceEntry("rhythm", 0x80, 0, 0, 0, None, 0, 0, 0, 0, 0,
+                        args[0])
     raise RuntimeError(f"unsupported voice macro {name}")
 
   def _assemble_song(self, spec: dict) -> dict:
@@ -338,7 +361,8 @@ class AudioAssetTool:
   def _write_source(self, out_c: Path, songs: list[dict], wav_samples: list[dict],
                     cry_specs: list[dict], groups: list[str], tables: list[str],
                     pwaves: list[str]) -> None:
-    lines = ['#include "constants/songs.h"', '#include "pfr/audio_assets.h"', ""]
+    lines = ['#include "constants/songs.h"', '#include "pfr/audio_assets.h"',
+             "#include <stdint.h>", ""]
     for sample in wav_samples:
       name, rate, data = sample["name"], sample["rate"], sample["data"]
       loop_start, loop_enabled = sample["loop_start"], sample["loop_enabled"]
@@ -359,33 +383,57 @@ class AudioAssetTool:
       lines += [f"static const u8 sPfrKeysplit_{table}[128] = {{",
                 "  " + ", ".join(str(value) for value in values) + ",",
                 "};", ""]
-    for group in groups:
-      lines.append(f"static const PfrAudioVoice sPfrVoiceGroup_{group}[] = {{")
+    used_group_names = set(groups)
+    ordered_groups = [name for name in self.voice_groups.keys() if name in used_group_names]
+    group_offsets: dict[str, int] = {}
+    total_voice_count = 0
+    for group in ordered_groups:
+      group_offsets[group] = total_voice_count
+      total_voice_count += len(self.voice_groups[group])
+    lines.append("static const PfrAudioVoice sPfrVoiceData[] = {")
+    for group in ordered_groups:
+      lines.append(f"  /* {group} */")
       for entry in self.voice_groups[group]:
         if entry.kind in {"directsound", "directsound_no_resample"}:
-          sample_ref = f"&sPfrSample_{entry.ref}"
+          wav_ref = f"(const void *)&sPfrWave_{entry.ref}"
           subgroup = "NULL"
           keysplit = "NULL"
           subgroup_count = 0
-          kind = "PFR_AUDIO_VOICE_DIRECTSOUND_NO_RESAMPLE" if entry.kind.endswith("no_resample") else "PFR_AUDIO_VOICE_DIRECTSOUND"
         elif entry.kind == "programmable_wave":
-          sample_ref = f"&sPfrPwave_{entry.ref}"
+          wav_ref = f"(const void *)sPfrPwaveData_{entry.ref}"
           subgroup = "NULL"
           keysplit = "NULL"
           subgroup_count = 0
-          kind = "PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE"
         elif entry.kind == "square1":
-          sample_ref = "NULL"; subgroup = "NULL"; keysplit = "NULL"; subgroup_count = 0; kind = "PFR_AUDIO_VOICE_SQUARE1"
+          wav_ref = f"(const void *)(uintptr_t){entry.wav_value}"
+          subgroup = "NULL"
+          keysplit = "NULL"
+          subgroup_count = 0
         elif entry.kind == "square2":
-          sample_ref = "NULL"; subgroup = "NULL"; keysplit = "NULL"; subgroup_count = 0; kind = "PFR_AUDIO_VOICE_SQUARE2"
+          wav_ref = f"(const void *)(uintptr_t){entry.wav_value}"
+          subgroup = "NULL"
+          keysplit = "NULL"
+          subgroup_count = 0
         elif entry.kind == "noise":
-          sample_ref = "NULL"; subgroup = "NULL"; keysplit = "NULL"; subgroup_count = 0; kind = "PFR_AUDIO_VOICE_NOISE"
+          wav_ref = f"(const void *)(uintptr_t){entry.wav_value}"
+          subgroup = "NULL"
+          keysplit = "NULL"
+          subgroup_count = 0
         elif entry.kind == "keysplit":
-          sample_ref = "NULL"; subgroup = f"sPfrVoiceGroup_{entry.subgroup}"; keysplit = f"sPfrKeysplit_{entry.keysplit}"; subgroup_count = len(self.voice_groups[entry.subgroup]); kind = "PFR_AUDIO_VOICE_KEYSPLIT"
+          wav_ref = f"(const void *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
+          subgroup = f"&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
+          keysplit = f"sPfrKeysplit_{entry.keysplit}"
+          subgroup_count = total_voice_count - group_offsets[entry.subgroup]
         else:
-          sample_ref = "NULL"; subgroup = f"sPfrVoiceGroup_{entry.subgroup}"; keysplit = "NULL"; subgroup_count = len(self.voice_groups[entry.subgroup]); kind = "PFR_AUDIO_VOICE_RHYTHM"
-        lines.append(f"  {{ {kind}, {entry.base_key}, {entry.pan}, {entry.attack}, {entry.decay}, {entry.sustain}, {entry.release}, {entry.duty}, {sample_ref}, {subgroup}, {keysplit}, {subgroup_count} }},")
-      lines += ["};", ""]
+          wav_ref = f"(const void *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
+          subgroup = f"&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
+          keysplit = "NULL"
+          subgroup_count = total_voice_count - group_offsets[entry.subgroup]
+        lines.append(
+          f"  {{ {entry.type_value}, {entry.key}, {entry.length}, {entry.pan_sweep}, "
+          f"{wav_ref}, {entry.attack}, {entry.decay}, {entry.sustain}, "
+          f"{entry.release}, {subgroup}, {keysplit}, {subgroup_count} }},")
+    lines += ["};", ""]
     max_song_id = max(song["spec"]["id"] for song in songs)
     for song in songs:
       symbol = song["spec"]["symbol"]
@@ -420,7 +468,9 @@ class AudioAssetTool:
       spec = song["spec"]
       ms, _ = song["player_ids"]
       loop_flag = "TRUE" if song["loop"] else "FALSE"
-      lines.append(f"  {{ {spec['symbol'].upper()}, {ms}, {loop_flag}, {len(song['tracks'])}, {song['priority']}, {song['reverb']}, (const struct SongHeader*)&sPfrSongHeader_{spec['symbol']}, sPfrVoiceGroup_{song['voicegroup']}, {len(self.voice_groups[song['voicegroup']])}, sPfrTrackAssets_{spec['symbol']} }},")
+      voice_offset = group_offsets[song["voicegroup"]]
+      voice_count = total_voice_count - voice_offset
+      lines.append(f"  {{ {spec['symbol'].upper()}, {ms}, {loop_flag}, {len(song['tracks'])}, {song['priority']}, {song['reverb']}, (const struct SongHeader*)&sPfrSongHeader_{spec['symbol']}, &sPfrVoiceData[{voice_offset}], {voice_count}, sPfrTrackAssets_{spec['symbol']} }},")
     lines.append("};")
     lines.append(f"const u32 gPfrAudioSongAssetCount = {len(songs)}u;")
     lines.append("")

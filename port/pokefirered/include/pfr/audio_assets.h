@@ -4,16 +4,24 @@
 #include "gba/m4a_internal.h"
 #include "gba/types.h"
 
+#ifndef TONEDATA_TYPE_REV
+#define TONEDATA_TYPE_REV 0x10
+#endif
+
+#ifndef TONEDATA_TYPE_CMP
+#define TONEDATA_TYPE_CMP 0x20
+#endif
+
 typedef enum PfrAudioVoiceKind
 {
   PFR_AUDIO_VOICE_DIRECTSOUND = 0,
-  PFR_AUDIO_VOICE_DIRECTSOUND_NO_RESAMPLE = 1,
-  PFR_AUDIO_VOICE_SQUARE1 = 2,
-  PFR_AUDIO_VOICE_SQUARE2 = 3,
-  PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE = 4,
-  PFR_AUDIO_VOICE_NOISE = 5,
-  PFR_AUDIO_VOICE_KEYSPLIT = 6,
-  PFR_AUDIO_VOICE_RHYTHM = 7,
+  PFR_AUDIO_VOICE_SQUARE1 = 1,
+  PFR_AUDIO_VOICE_SQUARE2 = 2,
+  PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE = 3,
+  PFR_AUDIO_VOICE_NOISE = 4,
+  PFR_AUDIO_VOICE_DIRECTSOUND_NO_RESAMPLE = TONEDATA_TYPE_FIX,
+  PFR_AUDIO_VOICE_KEYSPLIT = TONEDATA_TYPE_SPL,
+  PFR_AUDIO_VOICE_RHYTHM = TONEDATA_TYPE_RHY,
 } PfrAudioVoiceKind;
 
 typedef struct PfrAudioSample
@@ -29,14 +37,14 @@ typedef struct PfrAudioSample
 typedef struct PfrAudioVoice
 {
   u8 kind;
-  u8 base_key;
-  s8 pan;
+  u8 key;
+  u8 length;
+  u8 pan_sweep;
+  const void* wav;
   u8 attack;
   u8 decay;
   u8 sustain;
   u8 release;
-  u8 duty_or_period;
-  const PfrAudioSample* sample;
   const struct PfrAudioVoice* subgroup;
   const u8* keysplit_table;
   u16 subgroup_count;
