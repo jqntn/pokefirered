@@ -1,14 +1,3 @@
-#if defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable : 4100)
-#pragma warning(disable : 4113)
-#pragma warning(disable : 4244)
-#pragma warning(disable : 4245)
-#pragma warning(disable : 4305)
-#pragma warning(disable : 4311)
-#pragma warning(disable : 4312)
-#endif
-
 #define UnusedDummyFunc pfr_unused_UnusedDummyFunc
 #define m4aSoundInit pfr_unused_m4aSoundInit
 #define m4aSoundMain pfr_unused_m4aSoundMain
@@ -66,7 +55,3 @@
 #undef m4aSoundMain
 #undef m4aSoundInit
 #undef UnusedDummyFunc
-
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#endif
