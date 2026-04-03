@@ -24,16 +24,6 @@ typedef enum PfrAudioVoiceKind
   PFR_AUDIO_VOICE_RHYTHM = TONEDATA_TYPE_RHY,
 } PfrAudioVoiceKind;
 
-typedef struct PfrAudioSample
-{
-  const s8* samples;
-  u32 sample_count;
-  u32 sample_rate;
-  u32 loop_start;
-  bool8 loop_enabled;
-  const struct WaveData* wave;
-} PfrAudioSample;
-
 typedef struct PfrAudioVoice
 {
   u8 kind;

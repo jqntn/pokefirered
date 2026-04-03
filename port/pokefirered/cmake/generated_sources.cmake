@@ -59,7 +59,11 @@ set(PFR_SOUND_WAV_ASM_FILES "")
 foreach(wav_file IN LISTS PFR_SOUND_WAV_FILES)
   file(RELATIVE_PATH wav_rel "${PFR_REPO_ROOT}" "${wav_file}")
   string(REGEX REPLACE "\\.wav$" ".s" asm_rel "${wav_rel}")
-  pfr_generate_wav_asm(wav_asm_output "${asm_rel}" "${wav_file}")
+  if(wav_rel MATCHES "^sound/direct_sound_samples/cries/")
+    pfr_generate_wav_asm(wav_asm_output "${asm_rel}" "${wav_file}" -c)
+  else()
+    pfr_generate_wav_asm(wav_asm_output "${asm_rel}" "${wav_file}")
+  endif()
   list(APPEND PFR_SOUND_WAV_ASM_FILES "${wav_asm_output}")
 endforeach()
 
@@ -82,15 +86,13 @@ add_custom_command(
     --asset sound/mus_intro_fight.s
     --asset sound/mus_title.s
     --asset sound/se_select.s
-    --asset sound/direct_sound_samples/cries/charizard.s
-    --asset sound/direct_sound_samples/cries/nidorino.s
   DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/audio_asset_tool.py"
     "${PFR_REPO_ROOT}/sound/MPlayDef.s"
     "${PFR_REPO_ROOT}/sound/keysplit_tables.inc"
     "${PFR_REPO_ROOT}/sound/song_table.inc"
     "${PFR_REPO_ROOT}/sound/voice_groups.inc"
-    "${PFR_REPO_ROOT}/include/constants/species.h"
+    "${PFR_REPO_ROOT}/sound/cry_tables.inc"
     ${PFR_SOUND_WAV_ASM_FILES}
     ${PFR_SONG_ASM_MUS_GAME_FREAK}
     ${PFR_SONG_ASM_MUS_INTRO_FIGHT}

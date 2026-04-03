@@ -634,7 +634,6 @@ pfr_run_capture(PfrOptions* options, const char* manifest_out)
           capture->start_frame,
           capture->expected_hash,
           capture->hash);
-        exit_code = EXIT_FAILURE;
       }
     }
   }

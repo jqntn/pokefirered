@@ -17,6 +17,7 @@
 #include "main.h"
 
 extern const u8 gCgb3Vol[];
+extern const s8 gDeltaEncodingTable[];
 
 enum
 {
@@ -75,6 +76,106 @@ pfr_clamp16(int32_t v)
   return (int16_t)v;
 }
 
+static s32
+pfr_audio_decode_dpcm_sample(const struct WaveData* wav, u32 sampleIndex)
+{
+  const u8* encoded = (const u8*)wav->data;
+  const u8* block = encoded + ((sampleIndex >> 6) * 0x21u);
+  u8 sample = block[0];
+  u32 offset = sampleIndex & 0x3Fu;
+  u32 i;
+
+  for (i = 1; i <= offset; i++) {
+    u8 packed = block[1 + ((i - 1) >> 1)];
+    u8 nibble = ((i - 1) & 1u) == 0 ? (packed & 0x0Fu) : (packed >> 4);
+
+    sample = (u8)(sample + (s8)gDeltaEncodingTable[nibble]);
+  }
+
+  return (s8)sample;
+}
+
+static s32
+pfr_audio_channel_sample_at(const struct SoundChannel* chan, u32 sampleIndex)
+{
+  if (chan->type & TONEDATA_TYPE_CMP) {
+    return pfr_audio_decode_dpcm_sample(chan->wav, sampleIndex);
+  }
+
+  return ((const s8*)chan->wav->data)[sampleIndex];
+}
+
+static bool
+pfr_audio_channel_indices(const struct SoundChannel* chan,
+                          u32* currentIndex,
+                          u32* nextIndex)
+{
+  if (chan->count == 0 || chan->wav == NULL) {
+    return false;
+  }
+
+  if (chan->type & TONEDATA_TYPE_REV) {
+    *currentIndex = chan->count - 1;
+    *nextIndex = chan->count > 1 ? chan->count - 2 : *currentIndex;
+  } else {
+    *currentIndex = chan->wav->size - chan->count;
+    *nextIndex = chan->count > 1 ? *currentIndex + 1 : *currentIndex;
+  }
+
+  return true;
+}
+
+static void
+pfr_audio_channel_refresh_pointer(struct SoundChannel* chan)
+{
+  if (chan->wav == NULL || chan->count == 0) {
+    chan->currentPointer = NULL;
+    return;
+  }
+
+  if (chan->type & TONEDATA_TYPE_CMP) {
+    if (chan->type & TONEDATA_TYPE_REV) {
+      chan->currentPointer = (s8*)(uintptr_t)chan->count;
+    } else {
+      chan->currentPointer = (s8*)(uintptr_t)(chan->wav->size - chan->count);
+    }
+    return;
+  }
+
+  if (chan->type & TONEDATA_TYPE_REV) {
+    chan->currentPointer = (s8*)chan->wav->data + chan->count - 1;
+  } else {
+    chan->currentPointer =
+      (s8*)chan->wav->data + (chan->wav->size - chan->count);
+  }
+}
+
+static void
+pfr_audio_channel_advance(struct SoundChannel* chan, u32 advance)
+{
+  if (advance == 0 || chan->wav == NULL || chan->count == 0) {
+    return;
+  }
+
+  if (advance < chan->count) {
+    chan->count -= advance;
+    pfr_audio_channel_refresh_pointer(chan);
+    return;
+  }
+
+  if ((chan->statusFlags & SOUND_CHANNEL_SF_LOOP) &&
+      !(chan->type & TONEDATA_TYPE_REV) &&
+      chan->wav->loopStart < chan->wav->size) {
+    chan->count = chan->wav->size - chan->wav->loopStart;
+    pfr_audio_channel_refresh_pointer(chan);
+    return;
+  }
+
+  chan->statusFlags = 0;
+  chan->count = 0;
+  chan->currentPointer = NULL;
+}
+
 const PfrAudioSongAsset*
 pfr_audio_song_asset_for_header(const struct SongHeader* song_header)
 {
@@ -117,6 +218,8 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
       s32 sample;
       s32 nextSample;
       u32 advance;
+      u32 currentIndex;
+      u32 nextIndex;
 
       if (!(chan->statusFlags & SOUND_CHANNEL_SF_ON)) {
         continue;
@@ -124,24 +227,14 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
       if (chan->statusFlags & SOUND_CHANNEL_SF_START) {
         continue;
       }
-      if (chan->wav == NULL || chan->currentPointer == NULL) {
+      if (!pfr_audio_channel_indices(chan, &currentIndex, &nextIndex)) {
         continue;
       }
 
-      sample = *chan->currentPointer;
-      nextSample = sample;
+      sample = pfr_audio_channel_sample_at(chan, currentIndex);
+      nextSample = pfr_audio_channel_sample_at(chan, nextIndex);
 
       if (!(chan->type & TONEDATA_TYPE_FIX)) {
-        if (chan->type & TONEDATA_TYPE_REV) {
-          if (chan->count > 1) {
-            nextSample = chan->currentPointer[-1];
-          }
-        } else {
-          if (chan->count > 1) {
-            nextSample = chan->currentPointer[1];
-          }
-        }
-
         sample += ((s32)chan->fw * (nextSample - sample)) / (s32)si->pcmFreq;
       }
 
@@ -157,27 +250,7 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
       }
 
       if (advance > 0) {
-        if (advance < chan->count) {
-          if (chan->type & TONEDATA_TYPE_REV) {
-            chan->currentPointer -= advance;
-          } else {
-            chan->currentPointer += advance;
-          }
-          chan->count -= advance;
-        } else {
-          if (chan->statusFlags & SOUND_CHANNEL_SF_LOOP) {
-            if (chan->type & TONEDATA_TYPE_REV) {
-              chan->currentPointer = (s8*)chan->wav->data + chan->wav->size - 1;
-              chan->count = chan->wav->size - chan->wav->loopStart;
-            } else {
-              chan->currentPointer =
-                (s8*)chan->wav->data + chan->wav->loopStart;
-              chan->count = chan->wav->size - chan->wav->loopStart;
-            }
-          } else {
-            chan->statusFlags = 0;
-          }
-        }
+        pfr_audio_channel_advance(chan, advance);
       }
     }
 
