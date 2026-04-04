@@ -71,7 +71,7 @@ function(pfr_define_native_runtime_targets)
   set(PFR_GAME_SOURCES
       ../../src/random.c
       ../../src/malloc.c
-      src/sound_port_include.c
+      ../../src/sound.c
       src/m4a_port_include.c
       ../../src/m4a_tables.c
       ../../src/string_util.c
