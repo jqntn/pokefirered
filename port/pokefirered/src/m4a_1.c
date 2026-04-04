@@ -57,9 +57,21 @@ static u8*
 pfr_port_resolve_pointer(struct MusicPlayerInfo* mplayInfo,
                          struct MusicPlayerTrack* track)
 {
+  const struct PokemonCrySong* cry_song = NULL;
   const PfrAudioTrackAsset* ta = pfr_port_find_track_asset(mplayInfo, track);
   u32 offset;
   u32 i;
+
+  if ((uintptr_t)mplayInfo->songHeader >= (uintptr_t)&gPokemonCrySongs[0] &&
+      (uintptr_t)mplayInfo->songHeader <
+        (uintptr_t)(&gPokemonCrySongs[MAX_POKEMON_CRIES])) {
+    cry_song = (const struct PokemonCrySong*)mplayInfo->songHeader;
+  }
+
+  if (cry_song != NULL &&
+      track->cmdPtr == (u8*)(uintptr_t)&cry_song->gotoTarget) {
+    return (u8*)(uintptr_t)&cry_song->cont[0];
+  }
 
   if (ta == NULL) {
     return track->cmdPtr;
