@@ -22,6 +22,11 @@ extern const s8 gDeltaEncodingTable[];
 enum
 {
   PFR_AUDIO_FRAMES_PER_VBLANK = 224,
+  // Keep the existing PSG loudness close to the previous host mixer while
+  // switching to a positive-going waveform model plus high-pass filtering.
+  PFR_AUDIO_CGB_MIX_SCALE = 324,
+  // mGBA's GBA PSG path uses the same simple DC-blocking filter constant.
+  PFR_AUDIO_CGB_FILTER = 65368,
 };
 
 extern void
@@ -63,6 +68,8 @@ static u32 sObservedSeClocks[3];
 static bool8 sObservedSeActive[3];
 static u32 sObservedCryClocks[MAX_POKEMON_CRIES];
 static bool8 sObservedCryActive[MAX_POKEMON_CRIES];
+static int32_t sPfrCgbCapLeft;
+static int32_t sPfrCgbCapRight;
 
 static int16_t
 pfr_clamp16(int32_t v)
@@ -343,8 +350,8 @@ pfr_audio_cgb_wave_volume(u8 envelopeVolume)
   }
 }
 
-static s32
-pfr_audio_cgb_wave_sample(const u8* wave, u32 sampleIndex)
+static u8
+pfr_audio_cgb_wave_sample_nibble(const u8* wave, u32 sampleIndex)
 {
   u8 packed = wave[sampleIndex >> 1];
   u8 nibble;
@@ -355,7 +362,64 @@ pfr_audio_cgb_wave_sample(const u8* wave, u32 sampleIndex)
     nibble = packed & 0x0Fu;
   }
 
-  return ((s32)nibble - 8) * 16;
+  return nibble;
+}
+
+static u8
+pfr_audio_cgb_noise_advance(u32* noise_state, bool8 narrow)
+{
+  u32 lfsr = *noise_state;
+  u32 coeff = narrow ? 0x4040u : 0x4000u;
+  u32 high = (lfsr ^ (lfsr >> 1) ^ 1u) & 0x1u;
+
+  lfsr >>= 1;
+  if (high != 0) {
+    lfsr |= coeff;
+  } else {
+    lfsr &= ~coeff;
+  }
+  lfsr &= 0x7FFFu;
+
+  *noise_state = lfsr;
+  return (u8)high;
+}
+
+static u8
+pfr_audio_cgb_noise_sample(struct CgbChannel* chan)
+{
+  u32* phase_ptr = pfr_audio_cgb_phase_ptr(chan);
+  u32* noise_state = pfr_audio_cgb_aux_ptr(chan);
+  double phase = ((double)(*phase_ptr & 0xFFFFu) / 65536.0) +
+                 pfr_audio_cgb_noise_step(chan->frequency);
+  u32 steps = 0;
+  u32 positive_steps = 0;
+  u8 high = chan->dummy5 != 0;
+  bool8 narrow = (((uintptr_t)chan->wavePointer & 0x1u) != 0);
+
+  while (phase >= 1.0) {
+    phase -= 1.0;
+    high = pfr_audio_cgb_noise_advance(noise_state, narrow);
+    positive_steps += high;
+    steps++;
+  }
+
+  *phase_ptr = (u32)(phase * 65536.0);
+  chan->dummy5 = high;
+
+  if (steps == 0) {
+    return high ? chan->envelopeVolume : 0;
+  }
+
+  return (u8)((positive_steps * chan->envelopeVolume + (steps / 2)) / steps);
+}
+
+static s32
+pfr_audio_cgb_filter_sample(s32 sample, int32_t* cap)
+{
+  int64_t filtered = (int64_t)sample - (*cap >> 16);
+
+  *cap = (int32_t)(((int64_t)sample << 16) - filtered * PFR_AUDIO_CGB_FILTER);
+  return (s32)filtered;
 }
 
 static void
@@ -372,13 +436,14 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
   for (frame = 0; frame < numSamples; frame++) {
     s32 mixL = output[frame * 2 + 0];
     s32 mixR = output[frame * 2 + 1];
+    s32 psgL = 0;
+    s32 psgR = 0;
     u32 ch;
 
     for (ch = 0; ch < 4; ch++) {
       struct CgbChannel* chan = &si->cgbChans[ch];
-      s32 sample = 0;
+      u8 sample_level = 0;
       s32 contribution;
-      u8 envelopeVolume = chan->envelopeVolume;
       bool enableRight;
       bool enableLeft;
 
@@ -399,7 +464,8 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
             sDutyPatterns[(uintptr_t)chan->wavePointer & 0x3u];
           u32 phase = *pfr_audio_cgb_phase_ptr(chan);
 
-          sample = pattern[(phase >> 16) & 0x7u] != 0 ? 108 : -108;
+          sample_level =
+            pattern[(phase >> 16) & 0x7u] != 0 ? chan->envelopeVolume : 0;
           phase += pfr_audio_cgb_square_step(chan->frequency);
           phase %= (8u << 16);
           *pfr_audio_cgb_phase_ptr(chan) = phase;
@@ -416,58 +482,38 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
             continue;
           }
 
-          sample =
-            pfr_audio_cgb_wave_sample(wave, (phase >> 16) & (wave_length - 1));
+          sample_level =
+            (u8)((pfr_audio_cgb_wave_sample_nibble(
+                    wave, (phase >> 16) & (wave_length - 1)) *
+                    pfr_audio_cgb_wave_volume(chan->envelopeVolume) +
+                  8) >>
+                 4);
           phase += pfr_audio_cgb_wave_step(chan->frequency);
           phase %= (wave_length << 16);
           *pfr_audio_cgb_phase_ptr(chan) = phase;
           break;
         }
-        case PFR_AUDIO_VOICE_NOISE: {
-          double phase =
-            ((double)(*pfr_audio_cgb_phase_ptr(chan) & 0xFFFFu) / 65536.0) +
-            pfr_audio_cgb_noise_step(chan->frequency);
-
-          while (phase >= 1.0) {
-            u32* noise_state = pfr_audio_cgb_aux_ptr(chan);
-            u32 bit;
-
-            phase -= 1.0;
-            if ((*noise_state & 0x7FFFu) == 0) {
-              *noise_state = 0x7FFFu;
-            }
-
-            bit = ((*noise_state ^ (*noise_state >> 1)) & 0x1u);
-            *noise_state = (*noise_state >> 1) | (bit << 14);
-            if (((uintptr_t)chan->wavePointer & 0x1u) != 0) {
-              *noise_state = (*noise_state & ~(1u << 6)) | (bit << 6);
-            }
-          }
-
-          *pfr_audio_cgb_phase_ptr(chan) = (u32)(phase * 65536.0);
-          sample = ((*pfr_audio_cgb_aux_ptr(chan) & 0x1u) == 0) ? 108 : -108;
+        case PFR_AUDIO_VOICE_NOISE:
+          sample_level = pfr_audio_cgb_noise_sample(chan);
           break;
-        }
         default:
           continue;
       }
 
-      if ((chan->type & TONEDATA_TYPE_CGB) ==
-          PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE) {
-        envelopeVolume = pfr_audio_cgb_wave_volume(chan->envelopeVolume);
-      }
-
       enableRight = (chan->pan & (1u << ch)) != 0;
       enableLeft = (chan->pan & (0x10u << ch)) != 0;
-      contribution = sample * (s32)envelopeVolume * 3;
+      contribution = (s32)sample_level * PFR_AUDIO_CGB_MIX_SCALE;
 
       if (enableRight) {
-        mixR += contribution;
+        psgR += contribution;
       }
       if (enableLeft) {
-        mixL += contribution;
+        psgL += contribution;
       }
     }
+
+    mixL += pfr_audio_cgb_filter_sample(psgL, &sPfrCgbCapLeft);
+    mixR += pfr_audio_cgb_filter_sample(psgR, &sPfrCgbCapRight);
 
     output[frame * 2 + 0] = pfr_clamp16(mixL);
     output[frame * 2 + 1] = pfr_clamp16(mixR);
@@ -553,6 +599,8 @@ m4aSoundInit(void)
   memset(sObservedSeActive, 0, sizeof(sObservedSeActive));
   memset(sObservedCryClocks, 0, sizeof(sObservedCryClocks));
   memset(sObservedCryActive, 0, sizeof(sObservedCryActive));
+  sPfrCgbCapLeft = 0;
+  sPfrCgbCapRight = 0;
 }
 
 void

@@ -941,7 +941,7 @@ ply_note(u32 note_cmd,
     cgbChan->sweep = panSweep;
 
     if (cgbType == PFR_AUDIO_VOICE_NOISE) {
-      *pfr_port_cgb_noise_ptr(cgbChan) = 0x7FFFu;
+      *pfr_port_cgb_noise_ptr(cgbChan) = 0;
     }
 
     chan->frequency =
