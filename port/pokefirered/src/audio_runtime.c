@@ -153,6 +153,9 @@ pfr_audio_channel_refresh_pointer(struct SoundChannel* chan)
 static void
 pfr_audio_channel_advance(struct SoundChannel* chan, u32 advance)
 {
+  u32 loop_length;
+  u32 overshoot;
+
   if (advance == 0 || chan->wav == NULL || chan->count == 0) {
     return;
   }
@@ -166,7 +169,20 @@ pfr_audio_channel_advance(struct SoundChannel* chan, u32 advance)
   if ((chan->statusFlags & SOUND_CHANNEL_SF_LOOP) &&
       !(chan->type & TONEDATA_TYPE_REV) &&
       chan->wav->loopStart < chan->wav->size) {
-    chan->count = chan->wav->size - chan->wav->loopStart;
+    loop_length = chan->wav->size - chan->wav->loopStart;
+    if (loop_length == 0) {
+      chan->statusFlags = 0;
+      chan->count = 0;
+      chan->currentPointer = NULL;
+      return;
+    }
+
+    overshoot = advance - chan->count;
+    overshoot %= loop_length;
+    chan->count = loop_length - overshoot;
+    if (chan->count == 0) {
+      chan->count = loop_length;
+    }
     pfr_audio_channel_refresh_pointer(chan);
     return;
   }

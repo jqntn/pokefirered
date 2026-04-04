@@ -155,13 +155,10 @@ class AudioAssetTool:
 
     output: dict[str, list[int]] = {}
     for name, table in tables.items():
-      values = []
-      for note in range(128):
-        if note in table:
-          values.append(table[note])
-        else:
-          nearest = min(table, key=lambda candidate: abs(candidate - note))
-          values.append(table[nearest])
+      values = [0] * 128
+      for note, value in table.items():
+        if 0 <= note < 128:
+          values[note] = value
       output[name] = values
     return output
 
@@ -196,29 +193,32 @@ class AudioAssetTool:
                         0x80 | pan if pan != 0 else 0, args[2], int(args[3]),
                         int(args[4]), int(args[5]), int(args[6]))
     if name in {"voice_square_1", "voice_square_1_alt"}:
-      length = int(args[1])
+      pan = int(args[1])
       return VoiceEntry("square1", 0x09 if name.endswith("_alt") else 0x01,
-                        int(args[0]), 0x80 | length if length != 0 else 0,
-                        int(args[2]), None, int(args[4]), int(args[5]),
-                        int(args[6]), int(args[7]), int(args[3]))
+                        int(args[0]), 0x80 | pan if pan != 0 else 0,
+                        int(args[2]) & 0xFF, None, int(args[4]) & 0x7,
+                        int(args[5]) & 0x7, int(args[6]) & 0xF,
+                        int(args[7]) & 0x7, int(args[3]) & 0x3)
     if name in {"voice_square_2", "voice_square_2_alt"}:
-      length = int(args[1])
+      pan = int(args[1])
       return VoiceEntry("square2", 0x0A if name.endswith("_alt") else 0x02,
-                        int(args[0]), 0x80 | length if length != 0 else 0, 0,
-                        None, int(args[3]), int(args[4]), int(args[5]),
-                        int(args[6]), int(args[2]))
+                        int(args[0]), 0x80 | pan if pan != 0 else 0, 0, None,
+                        int(args[3]) & 0x7, int(args[4]) & 0x7,
+                        int(args[5]) & 0xF, int(args[6]) & 0x7,
+                        int(args[2]) & 0x3)
     if name in {"voice_programmable_wave", "voice_programmable_wave_alt"}:
-      length = int(args[1])
+      pan = int(args[1])
       return VoiceEntry("programmable_wave", 0x0B if name.endswith("_alt") else 0x03,
-                        int(args[0]), 0x80 | length if length != 0 else 0, 0,
-                        args[2], int(args[3]), int(args[4]), int(args[5]),
-                        int(args[6]))
+                        int(args[0]), 0x80 | pan if pan != 0 else 0, 0,
+                        args[2], int(args[3]) & 0x7, int(args[4]) & 0x7,
+                        int(args[5]) & 0xF, int(args[6]) & 0x7)
     if name in {"voice_noise", "voice_noise_alt"}:
-      length = int(args[1])
+      pan = int(args[1])
       return VoiceEntry("noise", 0x0C if name.endswith("_alt") else 0x04,
-                        int(args[0]), 0x80 | length if length != 0 else 0, 0,
-                        None, int(args[3]), int(args[4]), int(args[5]),
-                        int(args[6]), int(args[2]))
+                        int(args[0]), 0x80 | pan if pan != 0 else 0, 0, None,
+                        int(args[3]) & 0x7, int(args[4]) & 0x7,
+                        int(args[5]) & 0xF, int(args[6]) & 0x7,
+                        int(args[2]) & 0x1)
     if name == "voice_keysplit":
       return VoiceEntry("keysplit", 0x40, 0, 0, 0, None, 0, 0, 0, 0, 0,
                         args[0], args[1])
@@ -327,19 +327,18 @@ class AudioAssetTool:
     return groups, sorted(tables), sorted(samples), sorted(pwaves)
 
   def _load_wav_asset(self, name: str, path: Path) -> dict:
-    format_type, sample_rate, loop_start, sample_count, loop_enabled, data = \
+    flags_word, pitch_word, loop_start, sample_count, data = \
       self._load_wav_asm(path)
     return {
       "name": name,
-      "type": format_type,
-      "rate": sample_rate,
+      "flags_word": flags_word,
+      "pitch_word": pitch_word,
       "loop_start": loop_start,
       "sample_count": sample_count,
-      "loop_enabled": loop_enabled,
       "data": data,
     }
 
-  def _load_wav_asm(self, path: Path) -> tuple[int, int, int, int, bool, list[int]]:
+  def _load_wav_asm(self, path: Path) -> tuple[int, int, int, int, list[int]]:
     header_bytes: list[int] = []
     words: list[int] = []
     samples: list[int] = []
@@ -368,12 +367,13 @@ class AudioAssetTool:
           if value > 127:
             value -= 256
           samples.append(value)
-    format_type = header_bytes[0] if header_bytes else 0
-    sample_rate = words[0] // 1024 if words else 0
+    flags_word = 0
+    for index, byte in enumerate(header_bytes[:4]):
+      flags_word |= (byte & 0xFF) << (index * 8)
+    pitch_word = words[0] if words else 0
     loop_start = words[1] if len(words) > 1 else 0
     sample_count = words[2] if len(words) > 2 else len(samples)
-    loop_enabled = len(header_bytes) > 3 and (header_bytes[3] & 0x40) != 0
-    return format_type, sample_rate, loop_start, sample_count, loop_enabled, samples
+    return flags_word, pitch_word, loop_start, sample_count, samples
 
   def _load_programmable_wave(self, name: str) -> list[int]:
     sample_number = int(name.split("_")[-1])
@@ -411,13 +411,15 @@ class AudioAssetTool:
     lines = ['#include "constants/songs.h"', '#include "pfr/audio_assets.h"',
              "#include <stdint.h>", ""]
     for sample in wav_samples:
-      name, rate, data = sample["name"], sample["rate"], sample["data"]
-      sample_type = sample["type"]
+      name = sample["name"]
+      flags_word = sample["flags_word"]
+      pitch_word = sample["pitch_word"]
+      data = sample["data"]
+      sample_type = flags_word & 0xFFFF
+      sample_status = (flags_word >> 16) & 0xFFFF
       loop_start = sample["loop_start"]
       sample_count = sample["sample_count"]
-      loop_enabled = sample["loop_enabled"]
-      status = "0xC000u" if loop_enabled else "0"
-      lines += [f"static const struct {{ u16 type; u16 status; u32 freq; u32 loopStart; u32 size; s8 data[{len(data)}]; }} sPfrWave_{name} = {{ {sample_type}, {status}, {rate}u, {loop_start}u, {sample_count}u, {{"]
+      lines += [f"static const struct {{ u16 type; u16 status; u32 freq; u32 loopStart; u32 size; s8 data[{len(data)}]; }} sPfrWave_{name} = {{ {sample_type}, 0x{sample_status:04X}u, {pitch_word}u, {loop_start}u, {sample_count}u, {{"]
       for index in range(0, len(data), 24):
         row = ", ".join(str(value) for value in data[index:index + 24])
         lines.append(f"  {row},")
@@ -434,10 +436,12 @@ class AudioAssetTool:
     used_group_names = set(groups)
     ordered_groups = [name for name in self.voice_groups.keys() if name in used_group_names]
     group_offsets: dict[str, int] = {}
+    group_lengths: dict[str, int] = {}
     total_voice_count = 0
     for group in ordered_groups:
       group_offsets[group] = total_voice_count
-      total_voice_count += len(self.voice_groups[group])
+      group_lengths[group] = len(self.voice_groups[group])
+      total_voice_count += group_lengths[group]
     lines.append("static const PfrAudioVoice sPfrVoiceData[] = {")
     for group in ordered_groups:
       lines.append(f"  /* {group} */")
@@ -471,7 +475,7 @@ class AudioAssetTool:
           wav_ref = f"(const void *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
           subgroup = f"&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
           keysplit = f"sPfrKeysplit_{entry.keysplit}"
-          subgroup_count = total_voice_count - group_offsets[entry.subgroup]
+          subgroup_count = group_lengths[entry.subgroup]
         else:
           wav_ref = f"(const void *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
           subgroup = f"&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
