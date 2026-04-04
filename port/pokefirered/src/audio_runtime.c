@@ -254,8 +254,8 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
         sample += ((s32)chan->fw * (nextSample - sample)) / (s32)si->pcmFreq;
       }
 
-      mixL += (sample * chan->leftVolume * chan->envelopeVolumeLeft) >> 8;
-      mixR += (sample * chan->rightVolume * chan->envelopeVolumeRight) >> 8;
+      mixL += sample * chan->envelopeVolumeLeft;
+      mixR += sample * chan->envelopeVolumeRight;
 
       if (chan->type & TONEDATA_TYPE_FIX) {
         advance = 1;
@@ -377,8 +377,10 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
     for (ch = 0; ch < 4; ch++) {
       struct CgbChannel* chan = &si->cgbChans[ch];
       s32 sample = 0;
-      s32 gain;
+      s32 contribution;
       u8 envelopeVolume = chan->envelopeVolume;
+      bool enableRight;
+      bool enableLeft;
 
       if (!(chan->statusFlags & SOUND_CHANNEL_SF_ON)) {
         continue;
@@ -455,9 +457,16 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
         envelopeVolume = pfr_audio_cgb_wave_volume(chan->envelopeVolume);
       }
 
-      gain = ((s32)(si->masterVolume + 1) * (s32)envelopeVolume + 15) / 16;
-      mixR += (sample * chan->rightVolume * gain) / 15;
-      mixL += (sample * chan->leftVolume * gain) / 15;
+      enableRight = (chan->pan & (1u << ch)) != 0;
+      enableLeft = (chan->pan & (0x10u << ch)) != 0;
+      contribution = sample * (s32)envelopeVolume * 3;
+
+      if (enableRight) {
+        mixR += contribution;
+      }
+      if (enableLeft) {
+        mixL += contribution;
+      }
     }
 
     output[frame * 2 + 0] = pfr_clamp16(mixL);
