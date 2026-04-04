@@ -740,6 +740,7 @@ ply_note(u32 note_cmd,
   const PfrAudioVoice* voice = pfr_port_get_track_voice(track);
   struct ToneData tone = track->tone;
   u8 type = tone.type;
+  u8 midiKey = track->key;
   u8 key = track->key;
 
   if ((type & (TONEDATA_TYPE_SPL | TONEDATA_TYPE_RHY)) != 0) {
@@ -891,7 +892,8 @@ ply_note(u32 note_cmd,
   chan->gateTime = track->gateTime;
   chan->velocity = track->velocity;
   chan->priority = (u8)priority;
-  chan->midiKey = key;
+  chan->key = key;
+  chan->midiKey = midiKey;
   chan->rhythmPan = (u8)rhythmPan;
   chan->type = tone.type;
   chan->wav = tone.wav;
@@ -1144,7 +1146,7 @@ MPlayMain(struct MusicPlayerInfo* mplayInfo)
         }
 
         if (track->flags & MPT_FLG_PITCHG) {
-          s32 adjustedKey = (s32)chan->midiKey + (s32)track->keyM;
+          s32 adjustedKey = (s32)chan->key + (s32)track->keyM;
           if (adjustedKey < 0) {
             adjustedKey = 0;
           }

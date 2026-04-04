@@ -275,31 +275,32 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
   }
 }
 
-static double
+static u32
 pfr_audio_cgb_square_step(u32 freq)
 {
   u32 reg = freq & 0x7FFu;
   u32 denom = 2048u - reg;
 
   if (denom == 0) {
-    return 0.0;
+    return 0;
   }
 
-  return 131072.0 / (double)denom / (double)PFR_DEFAULT_AUDIO_SAMPLE_RATE;
+  return (u32)((1048576.0 * 65536.0) / (double)denom /
+               (double)PFR_DEFAULT_AUDIO_SAMPLE_RATE);
 }
 
-static double
+static u32
 pfr_audio_cgb_wave_step(u32 freq)
 {
   u32 reg = freq & 0x7FFu;
   u32 denom = 2048u - reg;
 
   if (denom == 0) {
-    return 0.0;
+    return 0;
   }
 
-  return (65536.0 * 32.0) / (double)denom /
-         (double)PFR_DEFAULT_AUDIO_SAMPLE_RATE;
+  return (u32)(((65536.0 * 32.0) * 65536.0) / (double)denom /
+               (double)PFR_DEFAULT_AUDIO_SAMPLE_RATE);
 }
 
 static double
@@ -342,6 +343,21 @@ pfr_audio_cgb_wave_volume(u8 envelopeVolume)
   }
 }
 
+static s32
+pfr_audio_cgb_wave_sample(const u8* wave, u32 sampleIndex)
+{
+  u8 packed = wave[sampleIndex >> 1];
+  u8 nibble;
+
+  if ((sampleIndex & 1u) == 0) {
+    nibble = packed >> 4;
+  } else {
+    nibble = packed & 0x0Fu;
+  }
+
+  return ((s32)nibble - 8) * 16;
+}
+
 static void
 pfr_audio_mix_cgb_channels(struct SoundInfo* si,
                            int16_t* output,
@@ -360,7 +376,6 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
 
     for (ch = 0; ch < 4; ch++) {
       struct CgbChannel* chan = &si->cgbChans[ch];
-      double step;
       s32 sample = 0;
       s32 gain;
       u8 envelopeVolume = chan->envelopeVolume;
@@ -372,38 +387,38 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
       switch (chan->type & TONEDATA_TYPE_CGB) {
         case PFR_AUDIO_VOICE_SQUARE1:
         case PFR_AUDIO_VOICE_SQUARE2: {
-          static const double sDutyCycles[] = { 0.125, 0.25, 0.5, 0.75 };
-          double duty = sDutyCycles[(uintptr_t)chan->wavePointer & 0x3u];
-          double phase;
+          static const u8 sDutyPatterns[4][8] = {
+            { 0, 0, 0, 0, 0, 0, 0, 1 },
+            { 1, 0, 0, 0, 0, 0, 0, 1 },
+            { 1, 0, 0, 0, 0, 1, 1, 1 },
+            { 0, 1, 1, 1, 1, 1, 1, 0 },
+          };
+          const u8* pattern =
+            sDutyPatterns[(uintptr_t)chan->wavePointer & 0x3u];
+          u32 phase = *pfr_audio_cgb_phase_ptr(chan);
 
-          step = pfr_audio_cgb_square_step(chan->frequency);
-          phase =
-            ((double)(*pfr_audio_cgb_phase_ptr(chan) & 0xFFFFu) / 65536.0) +
-            step;
-          phase -= floor(phase);
-          *pfr_audio_cgb_phase_ptr(chan) =
-            (*pfr_audio_cgb_phase_ptr(chan) & 0xFFFF0000u) |
-            (u32)(phase * 65536.0);
-          sample = phase < duty ? 108 : -108;
+          sample = pattern[(phase >> 16) & 0x7u] != 0 ? 108 : -108;
+          phase += pfr_audio_cgb_square_step(chan->frequency);
+          phase %= (8u << 16);
+          *pfr_audio_cgb_phase_ptr(chan) = phase;
           break;
         }
         case PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE: {
-          const s8* wave =
-            (const s8*)(chan->currentPointer != NULL ? chan->currentPointer
+          const u8* wave =
+            (const u8*)(chan->currentPointer != NULL ? chan->currentPointer
                                                      : chan->wavePointer);
           u32 wave_length = 32;
-          double phase;
+          u32 phase = *pfr_audio_cgb_phase_ptr(chan);
 
           if (wave == NULL) {
             continue;
           }
 
-          step = pfr_audio_cgb_wave_step(chan->frequency);
-          phase =
-            ((double)(*pfr_audio_cgb_phase_ptr(chan) & 0xFFFFu) / 65536.0) +
-            step;
-          *pfr_audio_cgb_phase_ptr(chan) = (u32)(phase * 65536.0);
-          sample = wave[((u32)phase) % wave_length];
+          sample =
+            pfr_audio_cgb_wave_sample(wave, (phase >> 16) & (wave_length - 1));
+          phase += pfr_audio_cgb_wave_step(chan->frequency);
+          phase %= (wave_length << 16);
+          *pfr_audio_cgb_phase_ptr(chan) = phase;
           break;
         }
         case PFR_AUDIO_VOICE_NOISE: {

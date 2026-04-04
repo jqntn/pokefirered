@@ -24,6 +24,12 @@ class VoiceEntry:
   keysplit: str | None = None
 
 
+@dataclass
+class KeySplitBlob:
+  data: list[int]
+  offsets: dict[str, int]
+
+
 class AudioAssetTool:
   def __init__(self, repo_root: Path, asset_root: Path):
     self.repo_root = repo_root
@@ -31,7 +37,17 @@ class AudioAssetTool:
     self.env = self._parse_equ_file(self.repo_root / "sound" / "MPlayDef.s")
     self.voice_groups = self._parse_voice_groups(
       self.repo_root / "sound" / "voice_groups.inc")
-    self.keysplit_tables = self._parse_keysplit_tables(
+    self.voice_group_order = list(self.voice_groups.keys())
+    self.voice_group_lengths = {
+      name: len(entries) for name, entries in self.voice_groups.items()
+    }
+    self.voice_group_offsets: dict[str, int] = {}
+    total_voice_count = 0
+    for name in self.voice_group_order:
+      self.voice_group_offsets[name] = total_voice_count
+      total_voice_count += self.voice_group_lengths[name]
+    self.total_voice_count = total_voice_count
+    self.keysplit_blob = self._parse_keysplit_tables(
       self.repo_root / "sound" / "keysplit_tables.inc")
     self.song_players = self._parse_song_table(
       self.repo_root / "sound" / "song_table.inc")
@@ -136,31 +152,51 @@ class AudioAssetTool:
 
     return by_name, tables
 
-  def _parse_keysplit_tables(self, path: Path) -> dict[str, list[int]]:
-    tables: dict[str, dict[int, int]] = {}
+  def _parse_keysplit_tables(self, path: Path) -> KeySplitBlob:
+    blocks = []
     current = None
+    current_pos = 0
+    prefix_padding = 0
+
     for raw_line in path.read_text(encoding="utf-8").splitlines():
-      line = raw_line.strip()
+      line = raw_line.split("@", 1)[0].strip()
       if line.startswith(".set "):
-        current = line.split(",", 1)[0].split()[1]
-        tables[current] = {}
+        match = re.fullmatch(r"\.set\s+([A-Za-z0-9_]+)\s*,\s*\.\s*-\s*(\d+)",
+                             line)
+        if match is None:
+          continue
+        current = {
+          "name": match.group(1),
+          "subtract": int(match.group(2)),
+          "position": current_pos,
+          "bytes": [],
+        }
+        blocks.append(current)
+        prefix_padding = max(prefix_padding,
+                             current["subtract"] - current["position"])
         continue
       if current is None or not line.startswith(".byte"):
         continue
-      match = re.search(r"@\s*(\d+)", raw_line)
-      if match is None:
-        continue
-      value_text = line[len(".byte"):].split("@", 1)[0].strip()
-      tables[current][int(match.group(1))] = int(value_text)
+      values = self._eval_tokens(line[len(".byte"):], {})
+      current["bytes"].extend(values)
+      current_pos += len(values)
 
-    output: dict[str, list[int]] = {}
-    for name, table in tables.items():
-      values = [0] * 128
-      for note, value in table.items():
-        if 0 <= note < 128:
-          values[note] = value
-      output[name] = values
-    return output
+    blob = [0] * max(prefix_padding, 0)
+    offsets: dict[str, int] = {}
+    required_size = len(blob)
+
+    for block in blocks:
+      label_offset = len(blob) - block["subtract"]
+      if label_offset < 0:
+        raise RuntimeError(f"negative keysplit offset for {block['name']}")
+      offsets[block["name"]] = label_offset
+      blob.extend(block["bytes"])
+      required_size = max(required_size, label_offset + 128)
+
+    if len(blob) < required_size:
+      blob.extend([0] * (required_size - len(blob)))
+
+    return KeySplitBlob(blob, offsets)
 
   def _parse_voice_groups(self, path: Path) -> dict[str, list[VoiceEntry]]:
     groups: dict[str, list[VoiceEntry]] = {}
@@ -229,6 +265,7 @@ class AudioAssetTool:
 
   def _assemble_song(self, spec: dict) -> dict:
     path = self.asset_root / spec["source"]
+    source_text = path.read_text(encoding="utf-8")
     env = dict(self.env)
     aliases: dict[str, str] = {}
     tracks = []
@@ -237,7 +274,12 @@ class AudioAssetTool:
     header_words: list[str] = []
     header_mode = False
 
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    voice_indices = [
+      int(match.group(1))
+      for match in re.finditer(r"\bVOICE\s*,\s*(\d+)", source_text)
+    ]
+
+    for raw_line in source_text.splitlines():
       line = raw_line.split("@", 1)[0].strip()
       if not line:
         continue
@@ -294,37 +336,51 @@ class AudioAssetTool:
       "priority": header_bytes[2],
       "reverb": header_bytes[3],
       "voicegroup": aliases.get(header_words[0], header_words[0]),
+      "max_voice_index": max(voice_indices, default=0),
       "tracks": selected_tracks,
       "player_ids": spec["player_ids"],
       "loop": has_goto,
     }
 
   def _collect_voice_deps(self, songs: list[dict]) -> tuple[list[str], list[str], list[str], list[str]]:
-    groups = []
-    seen = set()
+    groups: set[str] = set()
     tables = set()
     samples = set()
     pwaves = set()
 
-    def visit(group: str) -> None:
-      if group in seen:
+    def include_group(group: str) -> None:
+      if group in groups:
         return
-      seen.add(group)
+      groups.add(group)
       for entry in self.voice_groups[group]:
         if entry.kind in {"keysplit", "rhythm"}:
-          visit(entry.subgroup)
+          include_group(entry.subgroup)
           if entry.keysplit is not None:
             tables.add(entry.keysplit)
+          if entry.kind == "rhythm":
+            include_voice_span(entry.subgroup, 127)
         elif entry.kind.startswith("directsound"):
           samples.add(entry.ref)
         elif entry.kind == "programmable_wave":
           pwaves.add(entry.ref)
-      groups.append(group)
+
+    def include_voice_span(group: str, max_index: int) -> None:
+      base_offset = self.voice_group_offsets[group]
+      end_offset = base_offset + max_index
+      for name in self.voice_group_order:
+        group_offset = self.voice_group_offsets[name]
+        if group_offset < base_offset:
+          continue
+        if group_offset > end_offset:
+          break
+        include_group(name)
 
     for song in songs:
-      visit(song["voicegroup"])
+      include_voice_span(song["voicegroup"], song["max_voice_index"])
+      include_group(song["voicegroup"])
 
-    return groups, sorted(tables), sorted(samples), sorted(pwaves)
+    ordered_groups = [name for name in self.voice_group_order if name in groups]
+    return ordered_groups, sorted(tables), sorted(samples), sorted(pwaves)
 
   def _load_wav_asset(self, name: str, path: Path) -> dict:
     flags_word, pitch_word, loop_start, sample_count, data = \
@@ -378,11 +434,7 @@ class AudioAssetTool:
   def _load_programmable_wave(self, name: str) -> list[int]:
     sample_number = int(name.split("_")[-1])
     path = self.repo_root / "sound" / "programmable_wave_samples" / f"{sample_number:02d}.pcm"
-    output = []
-    for byte in path.read_bytes():
-      output.append(((byte >> 4) - 8) * 16)
-      output.append(((byte & 0x0F) - 8) * 16)
-    return output
+    return list(path.read_bytes())
 
   def _wave_name_to_path(self, name: str) -> Path:
     suffix = name.removeprefix("DirectSoundWaveData_")
@@ -401,6 +453,14 @@ class AudioAssetTool:
     lines = [f"static const s8 {name}[] = {{"]
     for index in range(0, len(values), 24):
       row = ", ".join(str(value) for value in values[index:index + 24])
+      lines.append(f"  {row},")
+    lines.append("};")
+    return lines
+
+  def _emit_uint8_array(self, name: str, values: list[int]) -> list[str]:
+    lines = [f"static const u8 {name}[] = {{"]
+    for index in range(0, len(values), 24):
+      row = ", ".join(f"0x{value:02X}" for value in values[index:index + 24])
       lines.append(f"  {row},")
     lines.append("};")
     return lines
@@ -426,13 +486,11 @@ class AudioAssetTool:
       lines += ["}};", ""]
     for pname in pwaves:
       data = self._load_programmable_wave(pname)
-      lines += self._emit_int8_array(f"sPfrPwaveData_{pname}", data)
+      lines += self._emit_uint8_array(f"sPfrPwaveData_{pname}", data)
       lines += [""]
-    for table in tables:
-      values = self.keysplit_tables[table]
-      lines += [f"static const u8 sPfrKeysplit_{table}[128] = {{",
-                "  " + ", ".join(str(value) for value in values) + ",",
-                "};", ""]
+    if tables:
+      lines += self._emit_uint8_array("sPfrKeysplitBlob", self.keysplit_blob.data)
+      lines += [""]
     used_group_names = set(groups)
     ordered_groups = [name for name in self.voice_groups.keys() if name in used_group_names]
     group_offsets: dict[str, int] = {}
@@ -474,7 +532,7 @@ class AudioAssetTool:
         elif entry.kind == "keysplit":
           wav_ref = f"(const void *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
           subgroup = f"&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
-          keysplit = f"sPfrKeysplit_{entry.keysplit}"
+          keysplit = f"&sPfrKeysplitBlob[{self.keysplit_blob.offsets[entry.keysplit]}]"
           subgroup_count = group_lengths[entry.subgroup]
         else:
           wav_ref = f"(const void *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
