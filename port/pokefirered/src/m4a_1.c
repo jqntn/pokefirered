@@ -28,9 +28,6 @@ extern const PfrAudioSongAsset*
 pfr_audio_song_asset_for_header(const struct SongHeader* song_header);
 extern struct CgbChannel gCgbChans[];
 
-STATIC_ASSERT(sizeof(((struct MusicPlayerTrack*)0)->gap) >= sizeof(void*),
-              MusicPlayerTrackGapCanHoldPortVoice);
-
 static const PfrAudioTrackAsset*
 pfr_port_find_track_asset(struct MusicPlayerInfo* mplayInfo,
                           struct MusicPlayerTrack* track)
@@ -88,48 +85,13 @@ pfr_port_resolve_pointer(struct MusicPlayerInfo* mplayInfo,
   return track->cmdPtr;
 }
 
-static const PfrAudioVoice*
-pfr_port_resolve_voice(struct MusicPlayerInfo* mplayInfo, u32 voiceIndex)
+static const u8*
+pfr_port_keysplit_table(const struct ToneData* tone)
 {
-  const PfrAudioSongAsset* asset =
-    pfr_audio_song_asset_for_header(mplayInfo->songHeader);
+  u32 offset = (u32)tone->attack | ((u32)tone->decay << 8) |
+               ((u32)tone->sustain << 16) | ((u32)tone->release << 24);
 
-  if (asset == NULL || voiceIndex >= asset->voicegroup_count) {
-    return NULL;
-  }
-
-  return &asset->voicegroup[voiceIndex];
-}
-
-static void
-pfr_port_copy_voice_tone(struct ToneData* tone, const PfrAudioVoice* voice)
-{
-  tone->type = voice->kind;
-  tone->key = voice->key;
-  tone->length = voice->length;
-  tone->pan_sweep = voice->pan_sweep;
-  tone->wav = (struct WaveData*)voice->wav;
-  tone->attack = voice->attack;
-  tone->decay = voice->decay;
-  tone->sustain = voice->sustain;
-  tone->release = voice->release;
-}
-
-static void
-pfr_port_set_track_voice(struct MusicPlayerTrack* track,
-                         const PfrAudioVoice* voice)
-{
-  memcpy(track->gap, &voice, sizeof(voice));
-  memset(track->gap + sizeof(voice), 0, sizeof(track->gap) - sizeof(voice));
-}
-
-static const PfrAudioVoice*
-pfr_port_get_track_voice(const struct MusicPlayerTrack* track)
-{
-  const PfrAudioVoice* voice;
-
-  memcpy(&voice, track->gap, sizeof(voice));
-  return voice;
+  return &gPfrKeysplitBlob[offset];
 }
 
 static u32*
@@ -584,14 +546,11 @@ ply_voice(struct MusicPlayerInfo* mplayInfo, struct MusicPlayerTrack* track)
   u8 voiceIndex = *track->cmdPtr;
   track->cmdPtr++;
 
-  const PfrAudioVoice* voice = pfr_port_resolve_voice(mplayInfo, voiceIndex);
-
-  if (voice == NULL) {
+  if (mplayInfo->tone == NULL) {
     return;
   }
 
-  pfr_port_copy_voice_tone(&track->tone, voice);
-  pfr_port_set_track_voice(track, voice);
+  track->tone = mplayInfo->tone[voiceIndex];
 }
 
 void
@@ -749,7 +708,6 @@ ply_note(u32 note_cmd,
   }
 
   s32 rhythmPan = 0;
-  const PfrAudioVoice* voice = pfr_port_get_track_voice(track);
   struct ToneData tone = track->tone;
   u8 type = tone.type;
   u8 midiKey = track->key;
@@ -757,39 +715,29 @@ ply_note(u32 note_cmd,
 
   if ((type & (TONEDATA_TYPE_SPL | TONEDATA_TYPE_RHY)) != 0) {
     u32 subIndex;
-    const PfrAudioVoice* resolved;
+    const struct ToneData* subgroup = (const struct ToneData*)tone.wav;
 
-    if (voice == NULL) {
+    if (subgroup == NULL) {
       return;
     }
 
     if ((type & TONEDATA_TYPE_SPL) != 0) {
-      if (voice->keysplit_table != NULL) {
-        subIndex = voice->keysplit_table[key];
-      } else {
-        subIndex = 0;
-      }
+      subIndex = pfr_port_keysplit_table(&tone)[key];
     } else {
       subIndex = key;
     }
 
-    if (voice->subgroup != NULL && subIndex < voice->subgroup_count) {
-      resolved = &voice->subgroup[subIndex];
+    tone = subgroup[subIndex];
 
-      if ((resolved->kind & (TONEDATA_TYPE_SPL | TONEDATA_TYPE_RHY)) != 0) {
-        return;
-      }
-
-      pfr_port_copy_voice_tone(&tone, resolved);
-
-      if ((type & TONEDATA_TYPE_RHY) != 0) {
-        if (tone.pan_sweep & 0x80) {
-          rhythmPan = (s8)(tone.pan_sweep - TONEDATA_P_S_PAN) * 2;
-        }
-        key = tone.key;
-      }
-    } else {
+    if ((tone.type & (TONEDATA_TYPE_SPL | TONEDATA_TYPE_RHY)) != 0) {
       return;
+    }
+
+    if ((type & TONEDATA_TYPE_RHY) != 0) {
+      if (tone.pan_sweep & 0x80) {
+        rhythmPan = (s8)(tone.pan_sweep - TONEDATA_P_S_PAN) * 2;
+      }
+      key = tone.key;
     }
   }
 

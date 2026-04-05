@@ -12,7 +12,7 @@
 #define TONEDATA_TYPE_CMP 0x20
 #endif
 
-typedef enum PfrAudioVoiceKind
+enum
 {
   PFR_AUDIO_VOICE_DIRECTSOUND = 0,
   PFR_AUDIO_VOICE_SQUARE1 = 1,
@@ -22,23 +22,7 @@ typedef enum PfrAudioVoiceKind
   PFR_AUDIO_VOICE_DIRECTSOUND_NO_RESAMPLE = TONEDATA_TYPE_FIX,
   PFR_AUDIO_VOICE_KEYSPLIT = TONEDATA_TYPE_SPL,
   PFR_AUDIO_VOICE_RHYTHM = TONEDATA_TYPE_RHY,
-} PfrAudioVoiceKind;
-
-typedef struct PfrAudioVoice
-{
-  u8 kind;
-  u8 key;
-  u8 length;
-  u8 pan_sweep;
-  const void* wav;
-  u8 attack;
-  u8 decay;
-  u8 sustain;
-  u8 release;
-  const struct PfrAudioVoice* subgroup;
-  const u8* keysplit_table;
-  u16 subgroup_count;
-} PfrAudioVoice;
+};
 
 typedef struct PfrAudioTrackRelocation
 {
@@ -63,13 +47,12 @@ typedef struct PfrAudioSongAsset
   u8 priority;
   u8 reverb;
   const struct SongHeader* song_header;
-  const PfrAudioVoice* voicegroup;
-  u16 voicegroup_count;
   const PfrAudioTrackAsset* tracks;
 } PfrAudioSongAsset;
 
 extern const PfrAudioSongAsset gPfrAudioSongAssets[];
 extern const u32 gPfrAudioSongAssetCount;
+extern const u8 gPfrKeysplitBlob[];
 
 extern const struct ToneData gCryTable[];
 extern const struct ToneData gCryTable_Reverse[];

@@ -457,8 +457,11 @@ class AudioAssetTool:
     lines.append("};")
     return lines
 
-  def _emit_uint8_array(self, name: str, values: list[int]) -> list[str]:
-    lines = [f"static const u8 {name}[] = {{"]
+  def _emit_uint8_array(self,
+                        name: str,
+                        values: list[int],
+                        storage: str = "static const") -> list[str]:
+    lines = [f"{storage} u8 {name}[] = {{"]
     for index in range(0, len(values), 24):
       row = ", ".join(f"0x{value:02X}" for value in values[index:index + 24])
       lines.append(f"  {row},")
@@ -488,61 +491,66 @@ class AudioAssetTool:
       data = self._load_programmable_wave(pname)
       lines += self._emit_uint8_array(f"sPfrPwaveData_{pname}", data)
       lines += [""]
-    if tables:
-      lines += self._emit_uint8_array("sPfrKeysplitBlob", self.keysplit_blob.data)
-      lines += [""]
+    keysplit_blob = self.keysplit_blob.data if tables else [0]
+    lines += self._emit_uint8_array("gPfrKeysplitBlob", keysplit_blob, "const")
+    lines += [""]
     used_group_names = set(groups)
     ordered_groups = [name for name in self.voice_groups.keys() if name in used_group_names]
     group_offsets: dict[str, int] = {}
-    group_lengths: dict[str, int] = {}
     total_voice_count = 0
     for group in ordered_groups:
       group_offsets[group] = total_voice_count
-      group_lengths[group] = len(self.voice_groups[group])
-      total_voice_count += group_lengths[group]
-    lines.append("static const PfrAudioVoice sPfrVoiceData[] = {")
+      total_voice_count += len(self.voice_groups[group])
+    lines.append("static const struct ToneData sPfrVoiceData[] = {")
     for group in ordered_groups:
       lines.append(f"  /* {group} */")
       for entry in self.voice_groups[group]:
         if entry.kind in {"directsound", "directsound_no_resample"}:
-          wav_ref = f"(const void *)&sPfrWave_{entry.ref}"
-          subgroup = "NULL"
-          keysplit = "NULL"
-          subgroup_count = 0
+          wav_ref = f"(struct WaveData *)&sPfrWave_{entry.ref}"
+          attack = entry.attack
+          decay = entry.decay
+          sustain = entry.sustain
+          release = entry.release
         elif entry.kind == "programmable_wave":
-          wav_ref = f"(const void *)sPfrPwaveData_{entry.ref}"
-          subgroup = "NULL"
-          keysplit = "NULL"
-          subgroup_count = 0
+          wav_ref = f"(struct WaveData *)sPfrPwaveData_{entry.ref}"
+          attack = entry.attack
+          decay = entry.decay
+          sustain = entry.sustain
+          release = entry.release
         elif entry.kind == "square1":
-          wav_ref = f"(const void *)(uintptr_t){entry.wav_value}"
-          subgroup = "NULL"
-          keysplit = "NULL"
-          subgroup_count = 0
+          wav_ref = f"(struct WaveData *)(uintptr_t){entry.wav_value}"
+          attack = entry.attack
+          decay = entry.decay
+          sustain = entry.sustain
+          release = entry.release
         elif entry.kind == "square2":
-          wav_ref = f"(const void *)(uintptr_t){entry.wav_value}"
-          subgroup = "NULL"
-          keysplit = "NULL"
-          subgroup_count = 0
+          wav_ref = f"(struct WaveData *)(uintptr_t){entry.wav_value}"
+          attack = entry.attack
+          decay = entry.decay
+          sustain = entry.sustain
+          release = entry.release
         elif entry.kind == "noise":
-          wav_ref = f"(const void *)(uintptr_t){entry.wav_value}"
-          subgroup = "NULL"
-          keysplit = "NULL"
-          subgroup_count = 0
+          wav_ref = f"(struct WaveData *)(uintptr_t){entry.wav_value}"
+          attack = entry.attack
+          decay = entry.decay
+          sustain = entry.sustain
+          release = entry.release
         elif entry.kind == "keysplit":
-          wav_ref = f"(const void *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
-          subgroup = f"&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
-          keysplit = f"&sPfrKeysplitBlob[{self.keysplit_blob.offsets[entry.keysplit]}]"
-          subgroup_count = group_lengths[entry.subgroup]
+          keysplit_offset = self.keysplit_blob.offsets[entry.keysplit]
+          wav_ref = f"(struct WaveData *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
+          attack = keysplit_offset & 0xFF
+          decay = (keysplit_offset >> 8) & 0xFF
+          sustain = (keysplit_offset >> 16) & 0xFF
+          release = (keysplit_offset >> 24) & 0xFF
         else:
-          wav_ref = f"(const void *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
-          subgroup = f"&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
-          keysplit = "NULL"
-          subgroup_count = total_voice_count - group_offsets[entry.subgroup]
+          wav_ref = f"(struct WaveData *)&sPfrVoiceData[{group_offsets[entry.subgroup]}]"
+          attack = 0
+          decay = 0
+          sustain = 0
+          release = 0
         lines.append(
           f"  {{ {entry.type_value}, {entry.key}, {entry.length}, {entry.pan_sweep}, "
-          f"{wav_ref}, {entry.attack}, {entry.decay}, {entry.sustain}, "
-          f"{entry.release}, {subgroup}, {keysplit}, {subgroup_count} }},")
+          f"{wav_ref}, {attack}, {decay}, {sustain}, {release} }},")
     lines += ["};", ""]
     max_song_id = max(song["spec"]["id"] for song in songs)
     for song in songs:
@@ -560,7 +568,9 @@ class AudioAssetTool:
         lines.append(f"  {{ (const u8*)sPfrTrackData_{symbol}_{index}, {len(track['bytes'])}u, {reloc_ptr}, {len(track['relocs'])}u }},")
       lines += ["};", ""]
       lines.append(f"static struct {{ u8 trackCount; u8 blockCount; u8 priority; u8 reverb; struct ToneData* tone; u8* part[{len(song['tracks'])}]; }} sPfrSongHeader_{symbol} = {{")
-      lines.append(f"  {len(song['tracks'])}, 0, {song['priority']}, {song['reverb']}, NULL, {{")
+      lines.append(
+        f"  {len(song['tracks'])}, 0, {song['priority']}, {song['reverb']}, "
+        f"(struct ToneData *)&sPfrVoiceData[{group_offsets[song['voicegroup']]}], {{")
       for index in range(len(song["tracks"])):
         lines.append(f"    (u8*)sPfrTrackData_{symbol}_{index},")
       lines += ["  }", "};", ""]
@@ -578,9 +588,11 @@ class AudioAssetTool:
       spec = song["spec"]
       ms, _ = song["player_ids"]
       loop_flag = "TRUE" if song["loop"] else "FALSE"
-      voice_offset = group_offsets[song["voicegroup"]]
-      voice_count = total_voice_count - voice_offset
-      lines.append(f"  {{ {spec['symbol'].upper()}, {ms}, {loop_flag}, {len(song['tracks'])}, {song['priority']}, {song['reverb']}, (const struct SongHeader*)&sPfrSongHeader_{spec['symbol']}, &sPfrVoiceData[{voice_offset}], {voice_count}, sPfrTrackAssets_{spec['symbol']} }},")
+      lines.append(
+        f"  {{ {spec['symbol'].upper()}, {ms}, {loop_flag}, {len(song['tracks'])}, "
+        f"{song['priority']}, {song['reverb']}, "
+        f"(const struct SongHeader*)&sPfrSongHeader_{spec['symbol']}, "
+        f"sPfrTrackAssets_{spec['symbol']} }},")
     lines.append("};")
     lines.append(f"const u32 gPfrAudioSongAssetCount = {len(songs)}u;")
     lines.append("")
