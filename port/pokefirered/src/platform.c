@@ -31,7 +31,7 @@ typedef struct PfrOptions
   PfrMode mode;
 } PfrOptions;
 
-static const float sPfrMasterVolume = 0.25f;
+static const float sPfrMasterVolume = 0.5f;
 
 static bool
 pfr_parse_u32(const char* text, uint32_t* value)

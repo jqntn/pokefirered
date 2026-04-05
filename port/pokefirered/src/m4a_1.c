@@ -1010,7 +1010,6 @@ MPlayMain(struct MusicPlayerInfo* mplayInfo)
         track->volX = 64;
         track->lfoSpeed = 22;
         track->tone.type = 1;
-        goto next_command;
       }
 
       while (track->wait == 0) {
@@ -1029,7 +1028,6 @@ MPlayMain(struct MusicPlayerInfo* mplayInfo)
 
         if (status >= 0xCF) {
           soundInfo->plynote(status - 0xCF, mplayInfo, track);
-          goto next_command;
         } else if (status > 0xB0) {
           mplayInfo->cmd = status - 0xB1;
           MPlayFunc func = soundInfo->MPlayJumpTable[status - 0xB1];
@@ -1038,14 +1036,10 @@ MPlayMain(struct MusicPlayerInfo* mplayInfo)
           if (track->flags == 0) {
             goto track_done;
           }
-
-          goto next_command;
         } else {
           track->wait = gClockTable[status - 0x80];
         }
       }
-
-    next_command:
       if (track->wait > 0) {
         track->wait--;
       }
