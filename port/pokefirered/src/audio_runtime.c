@@ -11,6 +11,7 @@
 #include "constants/global.h"
 #include "constants/songs.h"
 #include "constants/sound.h"
+#include "gba/io_reg.h"
 #include "gba/m4a_internal.h"
 #include "global.h"
 #include "m4a.h"
@@ -277,8 +278,36 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
       }
     }
 
-    output[frame * 2 + 0] = pfr_clamp16(mixL);
-    output[frame * 2 + 1] = pfr_clamp16(mixR);
+    {
+      u16 soundcnt_h = REG_SOUNDCNT_H;
+      s32 fifoA = mixR;
+      s32 fifoB = mixL;
+      s32 outL = 0;
+      s32 outR = 0;
+
+      if ((soundcnt_h & SOUND_A_MIX_FULL) == 0) {
+        fifoA /= 2;
+      }
+      if ((soundcnt_h & SOUND_B_MIX_FULL) == 0) {
+        fifoB /= 2;
+      }
+
+      if (soundcnt_h & SOUND_A_LEFT_OUTPUT) {
+        outL += fifoA;
+      }
+      if (soundcnt_h & SOUND_A_RIGHT_OUTPUT) {
+        outR += fifoA;
+      }
+      if (soundcnt_h & SOUND_B_LEFT_OUTPUT) {
+        outL += fifoB;
+      }
+      if (soundcnt_h & SOUND_B_RIGHT_OUTPUT) {
+        outR += fifoB;
+      }
+
+      output[frame * 2 + 0] = pfr_clamp16(outL);
+      output[frame * 2 + 1] = pfr_clamp16(outR);
+    }
   }
 }
 
