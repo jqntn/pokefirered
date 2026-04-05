@@ -22,14 +22,10 @@ extern const s8 gDeltaEncodingTable[];
 
 enum
 {
-  PFR_AUDIO_FRAMES_PER_VBLANK = 224,
   // Convert the 4-bit PSG envelope domain into a 16-bit host mix domain.
   // The final quarter/half/full hardware mix ratio from SOUNDCNT_H is applied
   // separately in the PSG mixer.
   PFR_AUDIO_CGB_LEVEL_SCALE = 256,
-  // Pan Docs models the GBA output HPF using 0.999958^(4194304 / rate).
-  // At the port's 32768 Hz host rate, that becomes 65185 in 16.16 fixed-point.
-  PFR_AUDIO_GBA_HPF = 65185,
 };
 
 extern void
@@ -73,6 +69,7 @@ static u32 sObservedCryClocks[MAX_POKEMON_CRIES];
 static bool8 sObservedCryActive[MAX_POKEMON_CRIES];
 static int32_t sPfrOutCapLeft;
 static int32_t sPfrOutCapRight;
+static int32_t sPfrOutHpfQ16;
 
 static int16_t
 pfr_clamp16(int32_t v)
@@ -84,6 +81,38 @@ pfr_clamp16(int32_t v)
     return 32767;
   }
   return (int16_t)v;
+}
+
+static int8_t
+pfr_clamp8(int32_t v)
+{
+  if (v < -128) {
+    return -128;
+  }
+  if (v > 127) {
+    return 127;
+  }
+  return (int8_t)v;
+}
+
+static int32_t
+pfr_audio_output_hpf_q16(u32 sampleRate)
+{
+  double coeff;
+
+  if (sampleRate == 0) {
+    return 0;
+  }
+
+  // Pan Docs models the GBA output HPF using 0.999958^(4194304 / rate).
+  coeff = pow(0.999958, 4194304.0 / (double)sampleRate);
+  if (coeff < 0.0) {
+    coeff = 0.0;
+  } else if (coeff > 1.0) {
+    coeff = 1.0;
+  }
+
+  return (int32_t)(coeff * 65536.0 + 0.5);
 }
 
 static s32
@@ -264,8 +293,8 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
         sample += ((s32)chan->fw * (nextSample - sample)) / (s32)si->pcmFreq;
       }
 
-      mixL += sample * chan->envelopeVolumeLeft;
-      mixR += sample * chan->envelopeVolumeRight;
+      mixL += (sample * chan->envelopeVolumeLeft) >> 8;
+      mixR += (sample * chan->envelopeVolumeRight) >> 8;
 
       if (chan->type & TONEDATA_TYPE_FIX) {
         advance = 1;
@@ -307,8 +336,8 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
         outR += fifoB;
       }
 
-      output[frame * 2 + 0] = pfr_clamp16(outL);
-      output[frame * 2 + 1] = pfr_clamp16(outR);
+      output[frame * 2 + 0] = (int16_t)pfr_clamp8(outL) << 8;
+      output[frame * 2 + 1] = (int16_t)pfr_clamp8(outR) << 8;
     }
   }
 }
@@ -362,6 +391,59 @@ static u32*
 pfr_audio_cgb_aux_ptr(struct CgbChannel* chan)
 {
   return (u32*)&chan->dummy4[4];
+}
+
+static u8
+pfr_audio_cgb_square_sample(struct CgbChannel* chan)
+{
+  static const u8 sDutyPatterns[4][8] = {
+    { 0, 0, 0, 0, 0, 0, 0, 1 },
+    { 1, 0, 0, 0, 0, 0, 0, 1 },
+    { 1, 0, 0, 0, 0, 1, 1, 1 },
+    { 0, 1, 1, 1, 1, 1, 1, 0 },
+  };
+  const u8* pattern = sDutyPatterns[(uintptr_t)chan->wavePointer & 0x3u];
+  u32* phase_ptr = pfr_audio_cgb_phase_ptr(chan);
+  double phase = (double)(*phase_ptr) / 65536.0;
+  double step = (double)pfr_audio_cgb_square_step(chan->frequency) / 65536.0;
+  double position = phase;
+  double remaining = step;
+  double highTime = 0.0;
+
+  if (step <= 0.0) {
+    return pattern[((u32)phase) & 0x7u] != 0 ? chan->envelopeVolume : 0;
+  }
+
+  while (remaining > 0.0) {
+    double wrapped = fmod(position, 8.0);
+    double chunk = ceil(wrapped) - wrapped;
+    u32 dutyIndex;
+
+    if (wrapped < 0.0) {
+      wrapped += 8.0;
+    }
+    if (chunk <= 0.0) {
+      chunk = 1.0;
+    }
+    if (chunk > remaining) {
+      chunk = remaining;
+    }
+
+    dutyIndex = (u32)wrapped & 0x7u;
+    if (pattern[dutyIndex] != 0) {
+      highTime += chunk;
+    }
+
+    position += chunk;
+    remaining -= chunk;
+  }
+
+  phase = fmod(phase + step, 8.0);
+  if (phase < 0.0) {
+    phase += 8.0;
+  }
+  *phase_ptr = (u32)(phase * 65536.0 + 0.5);
+  return (u8)((highTime * chan->envelopeVolume) / step + 0.5);
 }
 
 static u8
@@ -449,7 +531,7 @@ pfr_audio_output_filter_sample(s32 sample, int32_t* cap)
 {
   int64_t filtered = (int64_t)sample - (*cap >> 16);
 
-  *cap = (int32_t)(((int64_t)sample << 16) - filtered * PFR_AUDIO_GBA_HPF);
+  *cap = (int32_t)(((int64_t)sample << 16) - filtered * sPfrOutHpfQ16);
   return (s32)filtered;
 }
 
@@ -500,21 +582,7 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
       switch (chan->type & TONEDATA_TYPE_CGB) {
         case PFR_AUDIO_VOICE_SQUARE1:
         case PFR_AUDIO_VOICE_SQUARE2: {
-          static const u8 sDutyPatterns[4][8] = {
-            { 0, 0, 0, 0, 0, 0, 0, 1 },
-            { 1, 0, 0, 0, 0, 0, 0, 1 },
-            { 1, 0, 0, 0, 0, 1, 1, 1 },
-            { 0, 1, 1, 1, 1, 1, 1, 0 },
-          };
-          const u8* pattern =
-            sDutyPatterns[(uintptr_t)chan->wavePointer & 0x3u];
-          u32 phase = *pfr_audio_cgb_phase_ptr(chan);
-
-          sample_level =
-            pattern[(phase >> 16) & 0x7u] != 0 ? chan->envelopeVolume : 0;
-          phase += pfr_audio_cgb_square_step(chan->frequency);
-          phase %= (8u << 16);
-          *pfr_audio_cgb_phase_ptr(chan) = phase;
+          sample_level = pfr_audio_cgb_square_sample(chan);
           break;
         }
         case PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE: {
@@ -570,6 +638,31 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
   }
 }
 
+static void
+pfr_audio_expand_driver_mix(const int16_t* source,
+                            u32 sourceFrames,
+                            int16_t* output,
+                            u32 outputFrames)
+{
+  u32 frame;
+
+  if (source == NULL || output == NULL || sourceFrames == 0 ||
+      outputFrames == 0) {
+    return;
+  }
+
+  for (frame = 0; frame < outputFrames; frame++) {
+    u32 sourceIndex = (u32)(((u64)frame * sourceFrames) / outputFrames);
+
+    if (sourceIndex >= sourceFrames) {
+      sourceIndex = sourceFrames - 1;
+    }
+
+    output[frame * 2 + 0] = source[sourceIndex * 2 + 0];
+    output[frame * 2 + 1] = source[sourceIndex * 2 + 1];
+  }
+}
+
 void
 SampleFreqSet(u32 freq)
 {
@@ -585,8 +678,9 @@ m4aSoundMode(u32 mode)
     (u8)((mode & SOUND_MODE_MAXCHN) >> SOUND_MODE_MAXCHN_SHIFT);
   gSoundInfo.freq = (u8)((mode & SOUND_MODE_FREQ) >> SOUND_MODE_FREQ_SHIFT);
   gSoundInfo.mode = (u8)(mode & 0xFF);
-  gSoundInfo.pcmFreq = PFR_DEFAULT_AUDIO_SAMPLE_RATE;
-  gSoundInfo.pcmSamplesPerVBlank = PFR_AUDIO_FRAMES_PER_VBLANK;
+  gSoundInfo.pcmFreq = PFR_DRIVER_PCM_SAMPLE_RATE;
+  gSoundInfo.pcmSamplesPerVBlank = PFR_DRIVER_PCM_FRAMES_PER_VBLANK;
+  sPfrOutHpfQ16 = pfr_audio_output_hpf_q16(PFR_DEFAULT_AUDIO_SAMPLE_RATE);
 }
 
 void
@@ -651,19 +745,28 @@ m4aSoundInit(void)
   memset(sObservedCryActive, 0, sizeof(sObservedCryActive));
   sPfrOutCapLeft = 0;
   sPfrOutCapRight = 0;
+  sPfrOutHpfQ16 = pfr_audio_output_hpf_q16(PFR_DEFAULT_AUDIO_SAMPLE_RATE);
 }
 
 void
 m4aSoundMain(void)
 {
-  int16_t output[PFR_AUDIO_FRAMES_PER_VBLANK * PFR_AUDIO_CHANNEL_COUNT];
+  int16_t
+    driverOutput[PFR_DRIVER_PCM_FRAMES_PER_VBLANK * PFR_AUDIO_CHANNEL_COUNT];
+  int16_t output[PFR_AUDIO_FRAMES_PER_GBA_FRAME * PFR_AUDIO_CHANNEL_COUNT];
 
   SoundMain();
 
-  pfr_audio_mix_channels(&gSoundInfo, output, PFR_AUDIO_FRAMES_PER_VBLANK);
-  pfr_audio_mix_cgb_channels(&gSoundInfo, output, PFR_AUDIO_FRAMES_PER_VBLANK);
+  pfr_audio_mix_channels(
+    &gSoundInfo, driverOutput, PFR_DRIVER_PCM_FRAMES_PER_VBLANK);
+  pfr_audio_expand_driver_mix(driverOutput,
+                              PFR_DRIVER_PCM_FRAMES_PER_VBLANK,
+                              output,
+                              PFR_AUDIO_FRAMES_PER_GBA_FRAME);
+  pfr_audio_mix_cgb_channels(
+    &gSoundInfo, output, PFR_AUDIO_FRAMES_PER_GBA_FRAME);
 
-  pfr_audio_queue_source_frames(output, PFR_AUDIO_FRAMES_PER_VBLANK);
+  pfr_audio_queue_source_frames(output, PFR_AUDIO_FRAMES_PER_GBA_FRAME);
 }
 
 void

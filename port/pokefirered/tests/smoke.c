@@ -1266,7 +1266,7 @@ static void
 test_core_and_audio(void)
 {
   PfrAudioStats stats;
-  int16_t frame_audio[224 * PFR_AUDIO_CHANNEL_COUNT];
+  int16_t frame_audio[PFR_AUDIO_FRAMES_PER_GBA_FRAME * PFR_AUDIO_CHANNEL_COUNT];
   PfrAudioWindow intro_window = { 0 };
   PfrAudioWindow title_window = { 0 };
   PfrAudioWindow cry_window = { 0 };
@@ -1334,7 +1334,9 @@ test_core_and_audio(void)
       }
     }
 
-    assert(pfr_audio_drain_source_frames(frame_audio, 224) == 224);
+    assert(pfr_audio_drain_source_frames(frame_audio,
+                                         PFR_AUDIO_FRAMES_PER_GBA_FRAME) ==
+           PFR_AUDIO_FRAMES_PER_GBA_FRAME);
     test_audio_window_feed(
       &intro_window, frame_audio, PFR_ARRAY_COUNT(frame_audio));
     test_audio_window_feed(

@@ -11,7 +11,6 @@
 #include "pfr/scripted_input.h"
 #include "raylib.h"
 
-#define PFR_AUDIO_FRAMES_PER_GBA_FRAME 224
 #define PFR_DEFAULT_AUDIO_MANIFEST_NAME "audio_capture_manifest.txt"
 #define PFR_DEFAULT_SAVE_PATH "pfr_startup_audio_capture.tmp.sav"
 #define PFR_FILENAME_BUFFER_SIZE 256
