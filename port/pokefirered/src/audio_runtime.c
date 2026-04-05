@@ -273,6 +273,8 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
       s32 sample;
       s32 nextSample;
       u32 advance;
+      u32 phase;
+      u32 step;
       u32 currentIndex;
       u32 nextIndex;
 
@@ -288,21 +290,20 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
 
       sample = pfr_audio_channel_sample_at(chan, currentIndex);
       nextSample = pfr_audio_channel_sample_at(chan, nextIndex);
-
-      if (!(chan->type & TONEDATA_TYPE_FIX)) {
-        sample += ((s32)chan->fw * (nextSample - sample)) / (s32)si->pcmFreq;
+      phase = chan->fw;
+      if (chan->type & TONEDATA_TYPE_FIX) {
+        step = 0x800000u;
+      } else {
+        step = (u32)((u64)si->divFreq * (u64)chan->frequency);
+        sample +=
+          (s32)(((int64_t)phase * (int64_t)(nextSample - sample)) >> 23);
       }
 
       mixL += (sample * chan->envelopeVolumeLeft) >> 8;
       mixR += (sample * chan->envelopeVolumeRight) >> 8;
-
-      if (chan->type & TONEDATA_TYPE_FIX) {
-        advance = 1;
-      } else {
-        chan->fw += chan->frequency;
-        advance = chan->fw / (u32)si->pcmFreq;
-        chan->fw %= (u32)si->pcmFreq;
-      }
+      phase += step;
+      advance = phase >> 23;
+      chan->fw = phase & 0x7FFFFFu;
 
       if (advance > 0) {
         pfr_audio_channel_advance(chan, advance);
@@ -666,27 +667,86 @@ pfr_audio_expand_driver_mix(const int16_t* source,
 void
 SampleFreqSet(u32 freq)
 {
-  (void)freq;
+  struct SoundInfo* soundInfo = &gSoundInfo;
+
+  freq = (freq & SOUND_MODE_FREQ) >> SOUND_MODE_FREQ_SHIFT;
+  if (freq == 0) {
+    return;
+  }
+
+  soundInfo->freq = (u8)freq;
+  soundInfo->pcmSamplesPerVBlank = (u8)gPcmSamplesPerVBlankTable[freq - 1];
+  soundInfo->pcmDmaPeriod =
+    (u8)(PCM_DMA_BUF_SIZE / soundInfo->pcmSamplesPerVBlank);
+  soundInfo->pcmFreq = (597275 * soundInfo->pcmSamplesPerVBlank + 5000) / 10000;
+  soundInfo->divFreq = (16777216 / soundInfo->pcmFreq + 1) >> 1;
 }
 
 void
 m4aSoundMode(u32 mode)
 {
-  gSoundInfo.masterVolume =
-    (u8)((mode & SOUND_MODE_MASVOL) >> SOUND_MODE_MASVOL_SHIFT);
-  gSoundInfo.maxChans =
-    (u8)((mode & SOUND_MODE_MAXCHN) >> SOUND_MODE_MAXCHN_SHIFT);
-  gSoundInfo.freq = (u8)((mode & SOUND_MODE_FREQ) >> SOUND_MODE_FREQ_SHIFT);
-  gSoundInfo.mode = (u8)(mode & 0xFF);
-  gSoundInfo.pcmFreq = PFR_DRIVER_PCM_SAMPLE_RATE;
-  gSoundInfo.pcmSamplesPerVBlank = PFR_DRIVER_PCM_FRAMES_PER_VBLANK;
-  sPfrOutHpfQ16 = pfr_audio_output_hpf_q16(PFR_DEFAULT_AUDIO_SAMPLE_RATE);
+  struct SoundInfo* soundInfo = &gSoundInfo;
+  u32 temp;
+
+  if (soundInfo->ident != ID_NUMBER) {
+    return;
+  }
+
+  soundInfo->ident++;
+
+  temp = mode & (SOUND_MODE_REVERB_SET | SOUND_MODE_REVERB_VAL);
+  if (temp != 0) {
+    soundInfo->reverb = (u8)(temp & SOUND_MODE_REVERB_VAL);
+  }
+
+  temp = mode & SOUND_MODE_MAXCHN;
+  if (temp != 0) {
+    struct SoundChannel* chan;
+
+    soundInfo->maxChans = (u8)(temp >> SOUND_MODE_MAXCHN_SHIFT);
+
+    temp = MAX_DIRECTSOUND_CHANNELS;
+    chan = &soundInfo->chans[0];
+
+    while (temp != 0) {
+      chan->statusFlags = 0;
+      temp--;
+      chan++;
+    }
+  }
+
+  temp = mode & SOUND_MODE_MASVOL;
+  if (temp != 0) {
+    soundInfo->masterVolume = (u8)(temp >> SOUND_MODE_MASVOL_SHIFT);
+  }
+
+  temp = mode & SOUND_MODE_DA_BIT;
+  if (temp != 0) {
+    temp = (temp & 0x300000) >> 14;
+    REG_SOUNDBIAS_H = (u8)((REG_SOUNDBIAS_H & 0x3F) | temp);
+  }
+
+  temp = mode & SOUND_MODE_FREQ;
+  if (temp != 0) {
+    m4aSoundVSyncOff();
+    SampleFreqSet(temp);
+  }
+
+  soundInfo->ident = ID_NUMBER;
 }
 
 void
 m4aSoundInit(void)
 {
   pfr_audio_reset();
+
+  REG_SOUNDCNT_X =
+    SOUND_MASTER_ENABLE | SOUND_4_ON | SOUND_3_ON | SOUND_2_ON | SOUND_1_ON;
+  REG_SOUNDCNT_H = SOUND_B_FIFO_RESET | SOUND_B_TIMER_0 | SOUND_B_LEFT_OUTPUT |
+                   SOUND_A_FIFO_RESET | SOUND_A_TIMER_0 | SOUND_A_RIGHT_OUTPUT |
+                   SOUND_ALL_MIX_FULL;
+  REG_SOUNDBIAS = 0x0200;
+  REG_SOUNDBIAS_H = (u8)((REG_SOUNDBIAS_H & 0x3F) | 0x40);
 
   memset(&gSoundInfo, 0, sizeof(gSoundInfo));
   gPfrSoundInfoPtr = &gSoundInfo;
@@ -751,18 +811,15 @@ m4aSoundInit(void)
 void
 m4aSoundMain(void)
 {
-  int16_t
-    driverOutput[PFR_DRIVER_PCM_FRAMES_PER_VBLANK * PFR_AUDIO_CHANNEL_COUNT];
+  u32 driverFrames = gSoundInfo.pcmSamplesPerVBlank;
+  int16_t driverOutput[528 * PFR_AUDIO_CHANNEL_COUNT];
   int16_t output[PFR_AUDIO_FRAMES_PER_GBA_FRAME * PFR_AUDIO_CHANNEL_COUNT];
 
   SoundMain();
 
-  pfr_audio_mix_channels(
-    &gSoundInfo, driverOutput, PFR_DRIVER_PCM_FRAMES_PER_VBLANK);
-  pfr_audio_expand_driver_mix(driverOutput,
-                              PFR_DRIVER_PCM_FRAMES_PER_VBLANK,
-                              output,
-                              PFR_AUDIO_FRAMES_PER_GBA_FRAME);
+  pfr_audio_mix_channels(&gSoundInfo, driverOutput, driverFrames);
+  pfr_audio_expand_driver_mix(
+    driverOutput, driverFrames, output, PFR_AUDIO_FRAMES_PER_GBA_FRAME);
   pfr_audio_mix_cgb_channels(
     &gSoundInfo, output, PFR_AUDIO_FRAMES_PER_GBA_FRAME);
 
@@ -867,7 +924,17 @@ pfr_stub_take_cry(void)
 
   for (i = 0; i < MAX_POKEMON_CRIES; i++) {
     struct MusicPlayerInfo* mplay = &gPokemonCryMusicPlayers[i];
-    bool32 active = IsPokemonCryPlaying(mplay);
+    bool32 active = FALSE;
+    u32 trackIndex;
+
+    for (trackIndex = 0; trackIndex < mplay->trackCount; trackIndex++) {
+      struct MusicPlayerTrack* track = &mplay->tracks[trackIndex];
+
+      if (track->chan != NULL && track->chan->track == track) {
+        active = TRUE;
+        break;
+      }
+    }
 
     if (!active) {
       sObservedCryClocks[i] = mplay->clock;

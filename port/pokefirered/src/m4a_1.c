@@ -347,6 +347,18 @@ MPlayExtender(struct CgbChannel* cgbChans)
 {
   struct SoundInfo* soundInfo = SOUND_INFO_PTR;
 
+  REG_SOUNDCNT_X =
+    SOUND_MASTER_ENABLE | SOUND_4_ON | SOUND_3_ON | SOUND_2_ON | SOUND_1_ON;
+  REG_SOUNDCNT_L = 0;
+  REG_NR12 = 0x8;
+  REG_NR22 = 0x8;
+  REG_NR42 = 0x8;
+  REG_NR14 = 0x80;
+  REG_NR24 = 0x80;
+  REG_NR44 = 0x80;
+  REG_NR30 = 0;
+  REG_NR50 = 0x77;
+
   if (soundInfo->ident != ID_NUMBER) {
     return;
   }
