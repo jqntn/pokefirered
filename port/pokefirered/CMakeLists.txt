@@ -53,3 +53,7 @@ pfr_define_native_tests()
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/native_dev_tools.cmake)
 pfr_define_native_dev_tools()
+
+if(TARGET pokefirered AND TARGET format-native)
+  add_dependencies(pokefirered format-native)
+endif()
