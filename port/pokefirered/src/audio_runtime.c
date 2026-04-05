@@ -27,8 +27,9 @@ enum
   // The final quarter/half/full hardware mix ratio from SOUNDCNT_H is applied
   // separately in the PSG mixer.
   PFR_AUDIO_CGB_LEVEL_SCALE = 256,
-  // mGBA's GBA PSG path uses the same simple DC-blocking filter constant.
-  PFR_AUDIO_CGB_FILTER = 65368,
+  // Pan Docs models the GBA output HPF using 0.999958^(4194304 / rate).
+  // At the port's 32768 Hz host rate, that becomes 65185 in 16.16 fixed-point.
+  PFR_AUDIO_GBA_HPF = 65185,
 };
 
 extern void
@@ -70,8 +71,8 @@ static u32 sObservedSeClocks[3];
 static bool8 sObservedSeActive[3];
 static u32 sObservedCryClocks[MAX_POKEMON_CRIES];
 static bool8 sObservedCryActive[MAX_POKEMON_CRIES];
-static int32_t sPfrCgbCapLeft;
-static int32_t sPfrCgbCapRight;
+static int32_t sPfrOutCapLeft;
+static int32_t sPfrOutCapRight;
 
 static int16_t
 pfr_clamp16(int32_t v)
@@ -444,11 +445,11 @@ pfr_audio_cgb_noise_sample(struct CgbChannel* chan)
 }
 
 static s32
-pfr_audio_cgb_filter_sample(s32 sample, int32_t* cap)
+pfr_audio_output_filter_sample(s32 sample, int32_t* cap)
 {
   int64_t filtered = (int64_t)sample - (*cap >> 16);
 
-  *cap = (int32_t)(((int64_t)sample << 16) - filtered * PFR_AUDIO_CGB_FILTER);
+  *cap = (int32_t)(((int64_t)sample << 16) - filtered * PFR_AUDIO_GBA_HPF);
   return (s32)filtered;
 }
 
@@ -558,8 +559,11 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
       }
     }
 
-    mixL += pfr_audio_cgb_filter_sample(psgL, &sPfrCgbCapLeft);
-    mixR += pfr_audio_cgb_filter_sample(psgR, &sPfrCgbCapRight);
+    mixL += psgL;
+    mixR += psgR;
+
+    mixL = pfr_audio_output_filter_sample(mixL, &sPfrOutCapLeft);
+    mixR = pfr_audio_output_filter_sample(mixR, &sPfrOutCapRight);
 
     output[frame * 2 + 0] = pfr_clamp16(mixL);
     output[frame * 2 + 1] = pfr_clamp16(mixR);
@@ -645,8 +649,8 @@ m4aSoundInit(void)
   memset(sObservedSeActive, 0, sizeof(sObservedSeActive));
   memset(sObservedCryClocks, 0, sizeof(sObservedCryClocks));
   memset(sObservedCryActive, 0, sizeof(sObservedCryActive));
-  sPfrCgbCapLeft = 0;
-  sPfrCgbCapRight = 0;
+  sPfrOutCapLeft = 0;
+  sPfrOutCapRight = 0;
 }
 
 void
