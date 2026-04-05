@@ -23,9 +23,10 @@ extern const s8 gDeltaEncodingTable[];
 enum
 {
   PFR_AUDIO_FRAMES_PER_VBLANK = 224,
-  // Keep the existing PSG loudness close to the previous host mixer while
-  // switching to a positive-going waveform model plus high-pass filtering.
-  PFR_AUDIO_CGB_MIX_SCALE = 324,
+  // Convert the 4-bit PSG envelope domain into a 16-bit host mix domain.
+  // The final quarter/half/full hardware mix ratio from SOUNDCNT_H is applied
+  // separately in the PSG mixer.
+  PFR_AUDIO_CGB_LEVEL_SCALE = 256,
   // mGBA's GBA PSG path uses the same simple DC-blocking filter constant.
   PFR_AUDIO_CGB_FILTER = 65368,
 };
@@ -451,12 +452,27 @@ pfr_audio_cgb_filter_sample(s32 sample, int32_t* cap)
   return (s32)filtered;
 }
 
+static u32
+pfr_audio_cgb_mix_gain(void)
+{
+  switch (REG_SOUNDCNT_H & 0x0003u) {
+    case SOUND_CGB_MIX_HALF:
+      return 2;
+    case SOUND_CGB_MIX_FULL:
+      return 4;
+    case SOUND_CGB_MIX_QUARTER:
+    default:
+      return 1;
+  }
+}
+
 static void
 pfr_audio_mix_cgb_channels(struct SoundInfo* si,
                            int16_t* output,
                            u32 numSamples)
 {
   u32 frame;
+  u32 cgbMixGain = pfr_audio_cgb_mix_gain();
 
   if (si->cgbChans == NULL) {
     return;
@@ -531,7 +547,8 @@ pfr_audio_mix_cgb_channels(struct SoundInfo* si,
 
       enableRight = (chan->pan & (1u << ch)) != 0;
       enableLeft = (chan->pan & (0x10u << ch)) != 0;
-      contribution = (s32)sample_level * PFR_AUDIO_CGB_MIX_SCALE;
+      contribution =
+        (s32)sample_level * PFR_AUDIO_CGB_LEVEL_SCALE * (s32)cgbMixGain;
 
       if (enableRight) {
         psgR += contribution;
