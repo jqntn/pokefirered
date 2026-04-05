@@ -750,11 +750,8 @@ m4aSoundInit(void)
 
   memset(&gSoundInfo, 0, sizeof(gSoundInfo));
   gPfrSoundInfoPtr = &gSoundInfo;
-
-  m4aSoundMode(SOUND_MODE_DA_BIT_8 | SOUND_MODE_FREQ_13379 |
-               (12 << SOUND_MODE_MASVOL_SHIFT) |
-               (5 << SOUND_MODE_MAXCHN_SHIFT));
-
+  gSoundInfo.maxChans = 8;
+  gSoundInfo.masterVolume = 15;
   gSoundInfo.plynote = (PlyNoteFunc)ply_note;
   gSoundInfo.CgbSound = (CgbSoundFunc)DummyFunc;
   gSoundInfo.CgbOscOff = (CgbOscOffFunc)DummyFunc;
@@ -765,6 +762,9 @@ m4aSoundInit(void)
 
   MPlayJumpTableCopy(gMPlayJumpTable);
   MPlayExtender(gCgbChans);
+  m4aSoundMode(SOUND_MODE_DA_BIT_8 | SOUND_MODE_FREQ_13379 |
+               (12 << SOUND_MODE_MASVOL_SHIFT) |
+               (5 << SOUND_MODE_MAXCHN_SHIFT));
 
   MPlayOpen(&gMPlayInfo_BGM, sMPlayTrackBgm, 10);
   MPlayOpen(&gMPlayInfo_SE1, sMPlayTrackSe1, 3);
