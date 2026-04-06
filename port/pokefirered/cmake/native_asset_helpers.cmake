@@ -34,13 +34,24 @@ endfunction()
 function(pfr_generate_midi_asm out_var relative_output midi_file)
   set(output_file "${PFR_ASSET_ROOT}/${relative_output}")
   get_filename_component(output_dir "${output_file}" DIRECTORY)
+  set(midi_cfg "${PFR_REPO_ROOT}/sound/songs/midi/midi.cfg")
 
   add_custom_command(
     OUTPUT "${output_file}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
-    COMMAND $<TARGET_FILE:mid2agb> "${midi_file}" "${output_file}"
-    WORKING_DIRECTORY "${PFR_REPO_ROOT}"
-    DEPENDS mid2agb "${midi_file}")
+    COMMAND
+      ${CMAKE_COMMAND}
+      -DPFR_MID2AGB=$<TARGET_FILE:mid2agb>
+      -DPFR_MIDI_CFG="${midi_cfg}"
+      -DPFR_MIDI_FILE="${midi_file}"
+      -DPFR_OUTPUT_FILE="${output_file}"
+      -DPFR_REPO_ROOT="${PFR_REPO_ROOT}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_mid2agb_from_cfg.cmake"
+    DEPENDS
+      mid2agb
+      "${midi_file}"
+      "${midi_cfg}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_mid2agb_from_cfg.cmake")
   set(${out_var} "${output_file}" PARENT_SCOPE)
 endfunction()
 
