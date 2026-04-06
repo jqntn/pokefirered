@@ -13,9 +13,17 @@
 #define CgbOscOff pfr_unused_CgbOscOff
 #define CgbModVol pfr_unused_CgbModVol
 #define CgbSound pfr_unused_CgbSound
+#if !defined(_MSC_VER)
+/* Host builds cannot assemble the GBA-only swi stub in
+ * MusicPlayerJumpTableCopy. */
+#define asm(...) ((void)0)
+#endif
 
 #include "../../../src/m4a.c"
 
+#if !defined(_MSC_VER)
+#undef asm
+#endif
 #undef CgbSound
 #undef CgbModVol
 #undef CgbOscOff
