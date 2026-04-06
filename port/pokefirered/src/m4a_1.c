@@ -391,8 +391,9 @@ PfrClear64byteImpl(void* x)
 }
 
 void
-RealClearChain(struct SoundChannel* chan)
+RealClearChain(void* x)
 {
+  struct SoundChannel* chan = x;
   struct MusicPlayerTrack* track = chan->track;
 
   if (track == NULL) {
@@ -1042,7 +1043,9 @@ MPlayMain(struct MusicPlayerInfo* mplayInfo)
           soundInfo->plynote(status - 0xCF, mplayInfo, track);
         } else if (status > 0xB0) {
           mplayInfo->cmd = status - 0xB1;
-          MPlayFunc func = soundInfo->MPlayJumpTable[status - 0xB1];
+          void (*func)(struct MusicPlayerInfo*, struct MusicPlayerTrack*) =
+            (void (*)(struct MusicPlayerInfo*, struct MusicPlayerTrack*))
+              soundInfo->MPlayJumpTable[status - 0xB1];
           func(mplayInfo, track);
 
           if (track->flags == 0) {
