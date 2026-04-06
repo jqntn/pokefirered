@@ -40,6 +40,8 @@ extern void
 DummyFunc(void);
 extern void
 ply_note(u32, struct MusicPlayerInfo*, struct MusicPlayerTrack*);
+extern void
+SoundMainRAM_EnvelopeStep(struct SoundInfo*);
 
 static struct MusicPlayerTrack sMPlayTrackBgm[10];
 static struct MusicPlayerTrack sMPlayTrackSe1[3];
@@ -61,7 +63,6 @@ const struct MusicPlayer gMPlayTable[] = {
   { &gMPlayInfo_SE3, sMPlayTrackSe3, 1, 0 },
 };
 
-static bool8 sVSyncEnabled;
 static const struct SongHeader* sObservedSeHeaders[3];
 static u32 sObservedSeClocks[3];
 static bool8 sObservedSeActive[3];
@@ -272,12 +273,58 @@ pfr_audio_song_asset_for_id(u16 song_id)
 }
 
 static void
-pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
+pfr_audio_prepare_driver_reverb(struct SoundInfo* si,
+                                u32 chunkOffset,
+                                u32 numSamples)
 {
+  s8* fifoA = &si->pcmBuffer[chunkOffset];
+  s8* fifoB = &si->pcmBuffer[PCM_DMA_BUF_SIZE + chunkOffset];
   u32 frame;
 
+  if (numSamples == 0) {
+    return;
+  }
+
+  if (si->reverb == 0) {
+    memset(fifoA, 0, numSamples);
+    memset(fifoB, 0, numSamples);
+    return;
+  }
+
+  {
+    s8* prevA =
+      si->pcmDmaCounter == 2 ? &si->pcmBuffer[0] : &fifoA[numSamples];
+    s8* prevB = &si->pcmBuffer[PCM_DMA_BUF_SIZE + (prevA - si->pcmBuffer)];
+
+    for (frame = 0; frame < numSamples; frame++) {
+      s32 sample = fifoB[frame] + fifoA[frame] + prevB[frame] + prevA[frame];
+
+      sample = (sample * si->reverb) >> 9;
+      if ((sample & 0x80) != 0) {
+        sample++;
+      }
+
+      fifoA[frame] = (s8)sample;
+      fifoB[frame] = (s8)sample;
+    }
+  }
+}
+
+void
+pfr_audio_render_driver_pcm_chunk(struct SoundInfo* si,
+                                  u32 chunkOffset,
+                                  u32 numSamples)
+{
+  s8* fifoA = &si->pcmBuffer[chunkOffset];
+  s8* fifoB = &si->pcmBuffer[PCM_DMA_BUF_SIZE + chunkOffset];
+  u32 frame;
+
+  SoundMainRAM_EnvelopeStep(si);
+  pfr_audio_prepare_driver_reverb(si, chunkOffset, numSamples);
+
   for (frame = 0; frame < numSamples; frame++) {
-    s32 mixL = 0, mixR = 0;
+    s32 mixA = fifoA[frame];
+    s32 mixB = fifoB[frame];
     u32 ch;
 
     for (ch = 0; ch < si->maxChans; ch++) {
@@ -291,9 +338,6 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
       u32 nextIndex;
 
       if (!(chan->statusFlags & SOUND_CHANNEL_SF_ON)) {
-        continue;
-      }
-      if (chan->statusFlags & SOUND_CHANNEL_SF_START) {
         continue;
       }
       if (!pfr_audio_channel_indices(chan, &currentIndex, &nextIndex)) {
@@ -311,8 +355,8 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
           (s32)(((int64_t)phase * (int64_t)(nextSample - sample)) >> 23);
       }
 
-      mixL += (sample * chan->envelopeVolumeLeft) >> 8;
-      mixR += (sample * chan->envelopeVolumeRight) >> 8;
+      mixA += (sample * chan->envelopeVolumeRight) >> 8;
+      mixB += (sample * chan->envelopeVolumeLeft) >> 8;
       phase += step;
       advance = phase >> 23;
       chan->fw = phase & 0x7FFFFFu;
@@ -322,36 +366,50 @@ pfr_audio_mix_channels(struct SoundInfo* si, int16_t* output, u32 numSamples)
       }
     }
 
-    {
-      u16 soundcnt_h = REG_SOUNDCNT_H;
-      s32 fifoA = mixR;
-      s32 fifoB = mixL;
-      s32 outL = 0;
-      s32 outR = 0;
+    fifoA[frame] = (s8)mixA;
+    fifoB[frame] = (s8)mixB;
+  }
+}
 
-      if ((soundcnt_h & SOUND_A_MIX_FULL) == 0) {
-        fifoA /= 2;
-      }
-      if ((soundcnt_h & SOUND_B_MIX_FULL) == 0) {
-        fifoB /= 2;
-      }
+static void
+pfr_audio_driver_pcm_to_output(const struct SoundInfo* si,
+                               u32 chunkOffset,
+                               int16_t* output,
+                               u32 numSamples)
+{
+  const s8* fifoA = &si->pcmBuffer[chunkOffset];
+  const s8* fifoB = &si->pcmBuffer[PCM_DMA_BUF_SIZE + chunkOffset];
+  u16 soundcnt_h = REG_SOUNDCNT_H;
+  u32 frame;
 
-      if (soundcnt_h & SOUND_A_LEFT_OUTPUT) {
-        outL += fifoA;
-      }
-      if (soundcnt_h & SOUND_A_RIGHT_OUTPUT) {
-        outR += fifoA;
-      }
-      if (soundcnt_h & SOUND_B_LEFT_OUTPUT) {
-        outL += fifoB;
-      }
-      if (soundcnt_h & SOUND_B_RIGHT_OUTPUT) {
-        outR += fifoB;
-      }
+  for (frame = 0; frame < numSamples; frame++) {
+    s32 sampleA = fifoA[frame];
+    s32 sampleB = fifoB[frame];
+    s32 outL = 0;
+    s32 outR = 0;
 
-      output[frame * 2 + 0] = (int16_t)pfr_clamp8(outL) << 8;
-      output[frame * 2 + 1] = (int16_t)pfr_clamp8(outR) << 8;
+    if ((soundcnt_h & SOUND_A_MIX_FULL) == 0) {
+      sampleA /= 2;
     }
+    if ((soundcnt_h & SOUND_B_MIX_FULL) == 0) {
+      sampleB /= 2;
+    }
+
+    if (soundcnt_h & SOUND_A_LEFT_OUTPUT) {
+      outL += sampleA;
+    }
+    if (soundcnt_h & SOUND_A_RIGHT_OUTPUT) {
+      outR += sampleA;
+    }
+    if (soundcnt_h & SOUND_B_LEFT_OUTPUT) {
+      outL += sampleB;
+    }
+    if (soundcnt_h & SOUND_B_RIGHT_OUTPUT) {
+      outR += sampleB;
+    }
+
+    output[frame * 2 + 0] = (int16_t)pfr_clamp8(outL) << 8;
+    output[frame * 2 + 1] = (int16_t)pfr_clamp8(outR) << 8;
   }
 }
 
@@ -676,6 +734,17 @@ pfr_audio_expand_driver_mix(const int16_t* source,
   }
 }
 
+static u32
+pfr_audio_driver_chunk_offset(const struct SoundInfo* soundInfo)
+{
+  if (soundInfo->pcmDmaCounter > 1) {
+    return (u32)(soundInfo->pcmSamplesPerVBlank *
+                 (soundInfo->pcmDmaPeriod - (soundInfo->pcmDmaCounter - 1)));
+  }
+
+  return 0;
+}
+
 void
 SampleFreqSet(u32 freq)
 {
@@ -809,7 +878,6 @@ m4aSoundInit(void)
     track->chan = 0;
   }
 
-  sVSyncEnabled = FALSE;
   memset((void*)sObservedSeHeaders, 0, sizeof(sObservedSeHeaders));
   memset(sObservedSeClocks, 0, sizeof(sObservedSeClocks));
   memset(sObservedSeActive, 0, sizeof(sObservedSeActive));
@@ -824,12 +892,14 @@ void
 m4aSoundMain(void)
 {
   u32 driverFrames = gSoundInfo.pcmSamplesPerVBlank;
+  u32 chunkOffset = pfr_audio_driver_chunk_offset(&gSoundInfo);
   int16_t driverOutput[528 * PFR_AUDIO_CHANNEL_COUNT];
   int16_t output[PFR_AUDIO_FRAMES_PER_GBA_FRAME * PFR_AUDIO_CHANNEL_COUNT];
 
   SoundMain();
 
-  pfr_audio_mix_channels(&gSoundInfo, driverOutput, driverFrames);
+  pfr_audio_driver_pcm_to_output(
+    &gSoundInfo, chunkOffset, driverOutput, driverFrames);
   pfr_audio_expand_driver_mix(
     driverOutput, driverFrames, output, PFR_AUDIO_FRAMES_PER_GBA_FRAME);
   pfr_audio_mix_cgb_channels(
@@ -841,21 +911,75 @@ m4aSoundMain(void)
 void
 m4aSoundVSync(void)
 {
-  if (sVSyncEnabled) {
-    gSoundInfo.pcmDmaCounter++;
+  const u32 dmaReload =
+    (u32)(((u32)(DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC |
+                 DMA_DEST_FIXED)
+           << 16) |
+          4u);
+
+  if (gSoundInfo.ident < ID_NUMBER || gSoundInfo.ident > ID_NUMBER + 1) {
+    return;
   }
+
+  if (--gSoundInfo.pcmDmaCounter > 0) {
+    return;
+  }
+
+  gSoundInfo.pcmDmaCounter = gSoundInfo.pcmDmaPeriod;
+
+  if (REG_DMA1CNT & (DMA_REPEAT << 16)) {
+    REG_DMA1CNT = dmaReload;
+  }
+
+  if (REG_DMA2CNT & (DMA_REPEAT << 16)) {
+    REG_DMA2CNT = dmaReload;
+  }
+
+  REG_DMA1CNT_H = DMA_32BIT;
+  REG_DMA2CNT_H = DMA_32BIT;
+  REG_DMA1CNT_H = DMA_ENABLE | DMA_START_SPECIAL | DMA_32BIT | DMA_REPEAT;
+  REG_DMA2CNT_H = DMA_ENABLE | DMA_START_SPECIAL | DMA_32BIT | DMA_REPEAT;
 }
 
 void
 m4aSoundVSyncOn(void)
 {
-  sVSyncEnabled = TRUE;
+  u32 ident = gSoundInfo.ident;
+
+  if (ident == ID_NUMBER) {
+    return;
+  }
+
+  REG_DMA1CNT_H = DMA_ENABLE | DMA_START_SPECIAL | DMA_32BIT | DMA_REPEAT;
+  REG_DMA2CNT_H = DMA_ENABLE | DMA_START_SPECIAL | DMA_32BIT | DMA_REPEAT;
+  gSoundInfo.pcmDmaCounter = 0;
+  gSoundInfo.ident = ident - 10;
 }
 
 void
 m4aSoundVSyncOff(void)
 {
-  sVSyncEnabled = FALSE;
+  const u32 dmaReload =
+    (u32)(((u32)(DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC |
+                 DMA_DEST_FIXED)
+           << 16) |
+          4u);
+
+  if (gSoundInfo.ident >= ID_NUMBER && gSoundInfo.ident <= ID_NUMBER + 1) {
+    gSoundInfo.ident += 10;
+
+    if (REG_DMA1CNT & (DMA_REPEAT << 16)) {
+      REG_DMA1CNT = dmaReload;
+    }
+
+    if (REG_DMA2CNT & (DMA_REPEAT << 16)) {
+      REG_DMA2CNT = dmaReload;
+    }
+
+    REG_DMA1CNT_H = DMA_32BIT;
+    REG_DMA2CNT_H = DMA_32BIT;
+    memset(gSoundInfo.pcmBuffer, 0, sizeof(gSoundInfo.pcmBuffer));
+  }
 }
 
 u16
