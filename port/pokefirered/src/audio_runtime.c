@@ -231,32 +231,44 @@ pfr_audio_channel_advance(struct SoundChannel* chan, u32 advance)
   chan->currentPointer = NULL;
 }
 
-const PfrAudioSongAsset*
-pfr_audio_song_asset_for_header(const struct SongHeader* song_header)
+static s32
+pfr_audio_song_id_for_header(const struct SongHeader* song_header)
 {
   size_t i;
 
+  if (song_header == NULL) {
+    return -1;
+  }
+
   for (i = 0; i < gPfrAudioSongAssetCount; i++) {
-    if (gPfrAudioSongAssets[i].song_header == song_header) {
-      return &gPfrAudioSongAssets[i];
+    if (gSongTable[i].header == song_header) {
+      return (s32)i;
     }
   }
 
-  return NULL;
+  return -1;
+}
+
+const PfrAudioSongAsset*
+pfr_audio_song_asset_for_header(const struct SongHeader* song_header)
+{
+  s32 song_id = pfr_audio_song_id_for_header(song_header);
+
+  if (song_id < 0) {
+    return NULL;
+  }
+
+  return &gPfrAudioSongAssets[song_id];
 }
 
 const PfrAudioSongAsset*
 pfr_audio_song_asset_for_id(u16 song_id)
 {
-  size_t i;
-
-  for (i = 0; i < gPfrAudioSongAssetCount; i++) {
-    if (gPfrAudioSongAssets[i].song_id == song_id) {
-      return &gPfrAudioSongAssets[i];
-    }
+  if (song_id >= gPfrAudioSongAssetCount) {
+    return NULL;
   }
 
-  return NULL;
+  return &gPfrAudioSongAssets[song_id];
 }
 
 static void
@@ -862,10 +874,9 @@ ClearPokemonCrySongs(void)
 u16
 pfr_stub_current_bgm(void)
 {
-  const PfrAudioSongAsset* asset =
-    pfr_audio_song_asset_for_header(gMPlayInfo_BGM.songHeader);
+  s32 song_id = pfr_audio_song_id_for_header(gMPlayInfo_BGM.songHeader);
 
-  return asset == NULL ? 0 : asset->song_id;
+  return song_id < 0 ? 0 : (u16)song_id;
 }
 
 bool8
@@ -900,13 +911,13 @@ pfr_stub_take_se(u16* songNum)
 
     if (!sObservedSeActive[i] || header != sObservedSeHeaders[i] ||
         mplay->clock < sObservedSeClocks[i]) {
-      const PfrAudioSongAsset* asset = pfr_audio_song_asset_for_header(header);
+      s32 song_id = pfr_audio_song_id_for_header(header);
 
       sObservedSeHeaders[i] = header;
       sObservedSeClocks[i] = mplay->clock;
       sObservedSeActive[i] = TRUE;
-      if (asset != NULL) {
-        *songNum = asset->song_id;
+      if (song_id >= 0) {
+        *songNum = (u16)song_id;
         return TRUE;
       }
     }

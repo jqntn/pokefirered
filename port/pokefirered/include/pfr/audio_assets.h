@@ -40,13 +40,6 @@ typedef struct PfrAudioTrackAsset
 
 typedef struct PfrAudioSongAsset
 {
-  u16 song_id;
-  u8 player_id;
-  bool8 loop;
-  u8 track_count;
-  u8 priority;
-  u8 reverb;
-  const struct SongHeader* song_header;
   const PfrAudioTrackAsset* tracks;
 } PfrAudioSongAsset;
 

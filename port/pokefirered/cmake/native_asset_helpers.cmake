@@ -18,7 +18,7 @@ function(pfr_generate_native_asset out_var relative_output mode input_file)
   set(${out_var} "${output_file}" PARENT_SCOPE)
 endfunction()
 
-function(pfr_generate_wav_asm out_var relative_output wav_file)
+function(pfr_generate_wav_bin out_var relative_output wav_file)
   set(output_file "${PFR_ASSET_ROOT}/${relative_output}")
   get_filename_component(output_dir "${output_file}" DIRECTORY)
   set(extra_args ${ARGN})
@@ -26,7 +26,7 @@ function(pfr_generate_wav_asm out_var relative_output wav_file)
   add_custom_command(
     OUTPUT "${output_file}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
-    COMMAND $<TARGET_FILE:wav2agb> ${extra_args} "${wav_file}" "${output_file}"
+    COMMAND $<TARGET_FILE:wav2agb> -b ${extra_args} "${wav_file}" "${output_file}"
     DEPENDS wav2agb "${wav_file}")
   set(${out_var} "${output_file}" PARENT_SCOPE)
 endfunction()

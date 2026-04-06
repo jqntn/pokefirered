@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "constants/songs.h"
 #include "global.h"
 
 #include "bg.h"
@@ -20,6 +21,7 @@
 #include "new_menu_helpers.h"
 #include "pfr/core.h"
 #include "pfr/dma.h"
+#include "pfr/audio_assets.h"
 #include "pfr/main_runtime.h"
 #include "random.h"
 #include "scanline_effect.h"
@@ -382,6 +384,31 @@ test_bg_tilemap_buffer_writes_use_native_heap_storage(void)
   FreeAllWindowBuffers();
 }
 
+static void
+test_audio_catalog_import(void)
+{
+  assert(gPfrAudioSongAssetCount == MUS_TEACHY_TV_MENU + 1);
+  assert(gSongTable[MUS_DUMMY].header != NULL);
+  assert(gSongTable[MUS_DUMMY].header->trackCount == 0);
+  assert(gSongTable[SE_SELECT].header != NULL);
+  assert(gSongTable[MUS_GAME_FREAK].header != NULL);
+  assert(gPfrAudioSongAssets[SE_SELECT].tracks != NULL);
+  assert(gPfrAudioSongAssets[MUS_GAME_FREAK].tracks != NULL);
+  assert(pfr_audio_song_asset_for_id(SE_SELECT) == &gPfrAudioSongAssets[SE_SELECT]);
+  assert(pfr_audio_song_asset_for_header(gSongTable[SE_SELECT].header) ==
+         &gPfrAudioSongAssets[SE_SELECT]);
+  assert(gSongTable[SE_SELECT].ms == 2);
+  assert(gSongTable[SE_SELECT].me == 2);
+  assert(gSongTable[SE_LOW_HEALTH].ms == 3);
+  assert(gSongTable[SE_LOW_HEALTH].me == 3);
+  assert(gSongTable[MUS_GAME_FREAK].ms == 0);
+  assert(gSongTable[MUS_GAME_FREAK].me == 0);
+  assert(gSongTable[MUS_HEAL].ms == 2);
+  assert(gSongTable[MUS_HEAL].me == 2);
+  assert(gCryTable[0].wav != NULL);
+  assert(gCryTable_Reverse[0].wav != NULL);
+}
+
 int
 main(void)
 {
@@ -395,6 +422,7 @@ main(void)
   test_decompress_tile_data_buffers_survive_dma();
   test_text_printer_embeds_font_assets();
   test_bg_tilemap_buffer_writes_use_native_heap_storage();
+  test_audio_catalog_import();
   puts("pfr_integration: ok");
   return 0;
 }

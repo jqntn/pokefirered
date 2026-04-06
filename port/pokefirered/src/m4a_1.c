@@ -40,7 +40,7 @@ pfr_port_find_track_asset(struct MusicPlayerInfo* mplayInfo,
     return NULL;
   }
 
-  for (i = 0; i < asset->track_count; i++) {
+  for (i = 0; i < mplayInfo->songHeader->trackCount; i++) {
     const PfrAudioTrackAsset* ta = &asset->tracks[i];
     if (track->cmdPtr >= ta->data && track->cmdPtr < ta->data + ta->length) {
       return ta;

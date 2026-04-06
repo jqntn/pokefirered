@@ -45,6 +45,16 @@ function(pfr_define_native_tests)
   add_test(
     NAME pfr_headless_sandbox
     COMMAND pokefirered --mode sandbox --headless --frames 3)
+  add_test(
+    NAME pfr_audio_artifact_parity
+    COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_audio_artifact_parity.py"
+            --repo-root
+            "${PFR_REPO_ROOT}"
+            --asset-root
+            "${PFR_ASSET_ROOT}"
+            --manifest
+            "${PFR_GENERATED_AUDIO_ASSET_MANIFEST}")
   add_test(NAME pfr_integration COMMAND pfr_integration)
 
   set(PFR_STARTUP_FRAME_MANIFEST
