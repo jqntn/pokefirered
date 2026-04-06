@@ -48,22 +48,11 @@ struct WaveData
 
 #define TONEDATA_TYPE_CGB    0x07
 #define TONEDATA_TYPE_FIX    0x08
-#define TONEDATA_TYPE_REV    0x10
-#define TONEDATA_TYPE_CMP    0x20
 #define TONEDATA_TYPE_SPL    0x40 // key split
 #define TONEDATA_TYPE_RHY    0x80 // rhythm
 
 #define TONEDATA_P_S_PAN    0xc0
 #define TONEDATA_P_S_PAM    TONEDATA_P_S_PAN
-
-enum
-{
-    PFR_AUDIO_VOICE_DIRECTSOUND = 0,
-    PFR_AUDIO_VOICE_SQUARE1 = 1,
-    PFR_AUDIO_VOICE_SQUARE2 = 2,
-    PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE = 3,
-    PFR_AUDIO_VOICE_NOISE = 4
-};
 
 struct ToneData
 {

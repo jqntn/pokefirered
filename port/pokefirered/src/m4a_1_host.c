@@ -14,7 +14,7 @@
 #include "gba/io_reg.h"
 #include "gba/m4a_internal.h"
 #include "global.h"
-#include "m4a_1_host.h"
+#include "pfr/m4a_1_host.h"
 #include "m4a.h"
 #include "main.h"
 

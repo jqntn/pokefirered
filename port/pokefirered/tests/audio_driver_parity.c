@@ -14,6 +14,7 @@
 #include "pfr/audio.h"
 #include "pfr/audio_assets.h"
 #include "pfr/core.h"
+#include "pfr/m4a_1_host.h"
 
 extern void* const gMPlayJumpTableTemplate[];
 extern void
