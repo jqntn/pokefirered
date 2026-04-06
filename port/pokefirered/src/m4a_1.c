@@ -756,7 +756,7 @@ ply_note(u32 note_cmd,
 
   type = tone.type;
 
-  u8 priority = mplayInfo->priority + track->priority;
+  u16 priority = mplayInfo->priority + track->priority;
   if (priority > 255) {
     priority = 255;
   }
@@ -788,7 +788,7 @@ ply_note(u32 note_cmd,
 
     chan = (struct SoundChannel*)cgbChan;
   } else {
-    u8 bestPriority = priority;
+    u16 bestPriority = priority;
     struct MusicPlayerTrack* bestTrack = track;
     struct SoundChannel* bestChan = NULL;
     u8 foundStopping = 0;
