@@ -8,7 +8,6 @@
 #define m4aSoundMode pfr_unused_m4aSoundMode
 #define m4aSoundVSyncOff pfr_unused_m4aSoundVSyncOff
 #define m4aSoundVSyncOn pfr_unused_m4aSoundVSyncOn
-#define MPlayStart pfr_unused_MPlayStart
 #define MidiKeyToCgbFreq pfr_unused_MidiKeyToCgbFreq
 #define CgbOscOff pfr_unused_CgbOscOff
 #define CgbModVol pfr_unused_CgbModVol
@@ -28,7 +27,6 @@
 #undef CgbModVol
 #undef CgbOscOff
 #undef MidiKeyToCgbFreq
-#undef MPlayStart
 #undef m4aSoundVSyncOn
 #undef m4aSoundVSyncOff
 #undef m4aSoundMode

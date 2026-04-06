@@ -38,8 +38,7 @@ endfunction()
 function(pfr_define_native_runtime_targets)
   set(PFR_CORE_SOURCES
       src/audio.c
-      src/audio_runtime.c
-      src/m4a_host_overrides.c
+      src/m4a_1_host.c
       src/m4a_1.c
       src/core.c
       src/dma.c

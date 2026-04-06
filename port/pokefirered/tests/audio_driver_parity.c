@@ -11,6 +11,7 @@
 #include "gba/io_reg.h"
 #include "gba/m4a_internal.h"
 #include "m4a.h"
+#include "pfr/audio.h"
 #include "pfr/audio_assets.h"
 #include "pfr/core.h"
 
@@ -54,6 +55,7 @@ test_reset_audio_state(void)
   memset(
     gPokemonCrySongs, 0, sizeof(struct PokemonCrySong) * MAX_POKEMON_CRIES);
   gPfrSoundInfoPtr = &gSoundInfo;
+  pfr_audio_reset();
   sRecordedPlayer = NULL;
   sRecordedPlayerCount = 0;
   sSoundMainHeadCount = 0;
@@ -506,6 +508,69 @@ test_driver_pcm_reverb_paths(void)
 }
 
 static void
+test_driver_pcm_channel_loop_mix(void)
+{
+  struct SoundInfo soundInfo = { 0 };
+  struct SoundChannel* chan = &soundInfo.chans[0];
+  TestWaveData wave = {
+    0,
+    0,
+    0,
+    1,
+    4,
+    { 32, 64, 96, 127 },
+  };
+  const s8 expected[] = { 31, 63, 95, 126, 63, 95 };
+  u32 i;
+
+  soundInfo.maxChans = 1;
+  soundInfo.masterVolume = 15;
+  soundInfo.divFreq = 0x800000;
+  chan->statusFlags = SOUND_CHANNEL_SF_ENV_SUSTAIN | SOUND_CHANNEL_SF_LOOP;
+  chan->wav = (struct WaveData*)&wave;
+  chan->count = wave.size;
+  chan->frequency = 1;
+  chan->envelopeVolume = 255;
+  chan->rightVolume = 255;
+  chan->leftVolume = 255;
+
+  pfr_audio_render_driver_pcm_chunk(&soundInfo, 0, 6);
+  for (i = 0; i < 6; i++) {
+    assert(soundInfo.pcmBuffer[i] == expected[i]);
+    assert(soundInfo.pcmBuffer[PCM_DMA_BUF_SIZE + i] == expected[i]);
+  }
+  assert(chan->count == 1);
+  assert(chan->statusFlags == (SOUND_CHANNEL_SF_ENV_SUSTAIN |
+                               SOUND_CHANNEL_SF_LOOP));
+}
+
+static void
+test_m4asoundmain_cgb_queue_output(void)
+{
+  int16_t firstFrame[2] = { 0, 0 };
+
+  test_reset_audio_state();
+  gSoundInfo.ident = ID_NUMBER;
+  gSoundInfo.CgbSound = (CgbSoundFunc)DummyFunc;
+  gSoundInfo.cgbChans = gCgbChans;
+  REG_SOUNDCNT_H = SOUND_CGB_MIX_FULL;
+
+  gCgbChans[0].statusFlags = SOUND_CHANNEL_SF_ENV_SUSTAIN;
+  gCgbChans[0].type = PFR_AUDIO_VOICE_SQUARE1;
+  gCgbChans[0].pan = 0x01;
+  gCgbChans[0].panMask = 0x11;
+  gCgbChans[0].envelopeVolume = 15;
+  gCgbChans[0].wavePointer = (u32*)(uintptr_t)0;
+  *((u32*)&gCgbChans[0].dummy4[0]) = 7u << 16;
+
+  m4aSoundMain();
+  assert(pfr_audio_available_frames() == PFR_AUDIO_FRAMES_PER_GBA_FRAME);
+  assert(pfr_audio_drain_source_frames(firstFrame, 1) == 1);
+  assert(firstFrame[0] == 0);
+  assert(firstFrame[1] > 0);
+}
+
+static void
 test_vsync_paths(void)
 {
   u16 repeatMode = DMA_ENABLE | DMA_START_SPECIAL | DMA_32BIT | DMA_REPEAT;
@@ -564,6 +629,8 @@ main(void)
   test_soundmain_guard_and_chunk_selection();
   test_soundmainram_envelope_step();
   test_driver_pcm_reverb_paths();
+  test_driver_pcm_channel_loop_mix();
+  test_m4asoundmain_cgb_queue_output();
   test_vsync_paths();
   puts("pfr_audio_driver_parity: ok");
   return 0;

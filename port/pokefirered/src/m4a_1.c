@@ -1,6 +1,6 @@
 #include "gba/m4a_internal.h"
 #include "global.h"
-#include "pfr/audio_assets.h"
+#include "m4a_1_host.h"
 
 #include <string.h>
 
@@ -10,8 +10,8 @@
 extern const u8 gClockTable[];
 extern const u8 gScaleTable[];
 extern const u32 gFreqTable[];
-extern const u8 gCgb3Vol[];
 extern void* const gMPlayJumpTableTemplate[];
+extern const s8 gDeltaEncodingTable[];
 
 u32
 umul3232H32(u32 multiplier, u32 multiplicand)
@@ -27,79 +27,8 @@ SoundMainBTM(void* x)
 
 extern u32
 MidiKeyToFreq(struct WaveData* wav, u8 key, u8 fineAdjust);
-extern const PfrAudioSongAsset*
-pfr_audio_song_asset_for_header(const struct SongHeader* song_header);
-extern struct CgbChannel gCgbChans[];
-extern void
-pfr_audio_render_driver_pcm_chunk(struct SoundInfo* soundInfo,
-                                  u32 chunkOffset,
-                                  u32 numSamples);
-
-static const PfrAudioTrackAsset*
-pfr_port_find_track_asset(struct MusicPlayerInfo* mplayInfo,
-                          struct MusicPlayerTrack* track)
-{
-  const PfrAudioSongAsset* asset =
-    pfr_audio_song_asset_for_header(mplayInfo->songHeader);
-  u32 i;
-
-  if (asset == NULL) {
-    return NULL;
-  }
-
-  for (i = 0; i < mplayInfo->songHeader->trackCount; i++) {
-    const PfrAudioTrackAsset* ta = &asset->tracks[i];
-    if (track->cmdPtr >= ta->data && track->cmdPtr < ta->data + ta->length) {
-      return ta;
-    }
-  }
-
-  return NULL;
-}
-
-static u8*
-pfr_port_resolve_pointer(struct MusicPlayerInfo* mplayInfo,
-                         struct MusicPlayerTrack* track)
-{
-  const struct PokemonCrySong* cry_song = NULL;
-  const PfrAudioTrackAsset* ta = pfr_port_find_track_asset(mplayInfo, track);
-  u32 offset;
-  u32 i;
-
-  if ((uintptr_t)mplayInfo->songHeader >= (uintptr_t)&gPokemonCrySongs[0] &&
-      (uintptr_t)mplayInfo->songHeader <
-        (uintptr_t)(&gPokemonCrySongs[MAX_POKEMON_CRIES])) {
-    cry_song = (const struct PokemonCrySong*)mplayInfo->songHeader;
-  }
-
-  if (cry_song != NULL &&
-      track->cmdPtr == (u8*)(uintptr_t)&cry_song->gotoTarget) {
-    return (u8*)(uintptr_t)&cry_song->cont[0];
-  }
-
-  if (ta == NULL) {
-    return track->cmdPtr;
-  }
-
-  offset = (u32)(track->cmdPtr - ta->data);
-
-  for (i = 0; i < ta->relocation_count; i++) {
-    if (ta->relocations[i].offset == offset) {
-      return (u8*)(ta->data + ta->relocations[i].target_offset);
-    }
-  }
-
-  return track->cmdPtr;
-}
-
-static const u8*
-pfr_port_keysplit_table(const struct ToneData* tone)
-{
-  u32 offset = (u32)tone->attack | ((u32)tone->decay << 8) |
-               ((u32)tone->sustain << 16) | ((u32)tone->release << 24);
-
-  return &gPfrKeysplitBlob[offset];
-}
+void
+SoundMainRAM_EnvelopeStep(struct SoundInfo* soundInfo);
 
 static u32*
 pfr_port_cgb_phase_ptr(struct CgbChannel* chan)
@@ -113,426 +42,219 @@ pfr_port_cgb_noise_ptr(struct CgbChannel* chan)
   return (u32*)&chan->dummy4[4];
 }
 
-u32
-MidiKeyToCgbFreq(u8 chanNum, u8 key, u8 fineAdjust)
+static s32
+pfr_audio_decode_dpcm_sample(const struct WaveData* wav, u32 sampleIndex)
 {
-  if (chanNum == PFR_AUDIO_VOICE_NOISE) {
-    if (key <= 20) {
-      key = 0;
-    } else {
-      key -= 21;
-      if (key > 59) {
-        key = 59;
-      }
-    }
+  const u8* encoded = (const u8*)wav->data;
+  const u8* block = encoded + ((sampleIndex >> 6) * 0x21u);
+  u8 sample = block[0];
+  u32 offset = sampleIndex & 0x3Fu;
+  u32 i;
 
-    return gNoiseTable[key];
+  for (i = 1; i <= offset; i++) {
+    u8 packed = block[1 + ((i - 1) >> 1)];
+    u8 nibble = ((i - 1) & 1u) == 0 ? (packed & 0x0Fu) : (packed >> 4);
+
+    sample = (u8)(sample + (s8)gDeltaEncodingTable[nibble]);
+  }
+
+  return (s8)sample;
+}
+
+static s32
+pfr_audio_channel_sample_at(const struct SoundChannel* chan, u32 sampleIndex)
+{
+  if (chan->type & TONEDATA_TYPE_CMP) {
+    return pfr_audio_decode_dpcm_sample(chan->wav, sampleIndex);
+  }
+
+  return ((const s8*)chan->wav->data)[sampleIndex];
+}
+
+static bool32
+pfr_audio_channel_indices(const struct SoundChannel* chan,
+                          u32* currentIndex,
+                          u32* nextIndex)
+{
+  if (chan->count == 0 || chan->wav == NULL) {
+    return FALSE;
+  }
+
+  if (chan->type & TONEDATA_TYPE_REV) {
+    *currentIndex = chan->count - 1;
+    *nextIndex = chan->count > 1 ? chan->count - 2 : *currentIndex;
   } else {
-    s32 val1;
-    s32 val2;
-
-    if (key <= 35) {
-      fineAdjust = 0;
-      key = 0;
-    } else {
-      key -= 36;
-      if (key > 130) {
-        key = 130;
-        fineAdjust = 255;
-      }
-    }
-
-    val1 = gCgbScaleTable[key];
-    val1 = gCgbFreqTable[val1 & 0xF] >> (val1 >> 4);
-
-    val2 = gCgbScaleTable[key + 1];
-    val2 = gCgbFreqTable[val2 & 0xF] >> (val2 >> 4);
-
-    return val1 + ((fineAdjust * (val2 - val1)) >> 8) + 2048;
+    *currentIndex = chan->wav->size - chan->count;
+    *nextIndex = chan->count > 1 ? *currentIndex + 1 : *currentIndex;
   }
+
+  return TRUE;
 }
 
-void
-CgbOscOff(u8 chanNum)
+static void
+pfr_audio_channel_refresh_pointer(struct SoundChannel* chan)
 {
-  switch (chanNum) {
-    case 1:
-      REG_NR12 = 8;
-      REG_NR14 = 0x80;
-      break;
-    case 2:
-      REG_NR22 = 8;
-      REG_NR24 = 0x80;
-      break;
-    case 3:
-      REG_NR30 = 0;
-      break;
-    default:
-      REG_NR42 = 8;
-      REG_NR44 = 0x80;
-      break;
-  }
-}
-
-static int
-pfr_port_cgb_pan(struct CgbChannel* chan)
-{
-  u32 rightVolume = chan->rightVolume;
-  u32 leftVolume = chan->leftVolume;
-
-  if ((u8)rightVolume >= (u8)leftVolume) {
-    if (rightVolume / 2 >= leftVolume) {
-      chan->pan = 0x0F;
-      return 1;
-    }
-  } else if (leftVolume / 2 >= rightVolume) {
-    chan->pan = 0xF0;
-    return 1;
-  }
-
-  return 0;
-}
-
-void
-CgbModVol(struct CgbChannel* chan)
-{
-  struct SoundInfo* soundInfo = SOUND_INFO_PTR;
-
-  if ((soundInfo->mode & 1) || !pfr_port_cgb_pan(chan)) {
-    chan->pan = 0xFF;
-    chan->envelopeGoal = (u8)((chan->leftVolume + chan->rightVolume) / 16);
-  } else {
-    chan->envelopeGoal = (u8)((chan->leftVolume + chan->rightVolume) / 16);
-    if (chan->envelopeGoal > 15) {
-      chan->envelopeGoal = 15;
-    }
-  }
-
-  chan->sustainGoal = (u8)((chan->envelopeGoal * chan->sustain + 15) >> 4);
-  chan->pan &= chan->panMask;
-}
-
-void
-CgbSound(void)
-{
-  s32 ch;
-  struct CgbChannel* channels;
-  s32 prevC15;
-  struct SoundInfo* soundInfo = SOUND_INFO_PTR;
-  vu8* nrx0ptr;
-  vu8* nrx1ptr;
-  vu8* nrx2ptr;
-  vu8* nrx3ptr;
-  vu8* nrx4ptr;
-  s32 envelopeStepTimeAndDir;
-  int mask = 0xFF;
-
-  if (soundInfo->c15 != 0) {
-    soundInfo->c15--;
-  } else {
-    soundInfo->c15 = 14;
-  }
-
-  for (ch = 1, channels = soundInfo->cgbChans; ch <= 4; ch++, channels++) {
-    if (!(channels->statusFlags & SOUND_CHANNEL_SF_ON)) {
-      continue;
-    }
-
-    switch (ch) {
-      case 1:
-        nrx0ptr = (vu8*)REG_ADDR_NR10;
-        nrx1ptr = (vu8*)REG_ADDR_NR11;
-        nrx2ptr = (vu8*)REG_ADDR_NR12;
-        nrx3ptr = (vu8*)REG_ADDR_NR13;
-        nrx4ptr = (vu8*)REG_ADDR_NR14;
-        break;
-      case 2:
-        nrx0ptr = (vu8*)(REG_ADDR_NR10 + 1);
-        nrx1ptr = (vu8*)REG_ADDR_NR21;
-        nrx2ptr = (vu8*)REG_ADDR_NR22;
-        nrx3ptr = (vu8*)REG_ADDR_NR23;
-        nrx4ptr = (vu8*)REG_ADDR_NR24;
-        break;
-      case 3:
-        nrx0ptr = (vu8*)REG_ADDR_NR30;
-        nrx1ptr = (vu8*)REG_ADDR_NR31;
-        nrx2ptr = (vu8*)REG_ADDR_NR32;
-        nrx3ptr = (vu8*)REG_ADDR_NR33;
-        nrx4ptr = (vu8*)REG_ADDR_NR34;
-        break;
-      default:
-        nrx0ptr = (vu8*)(REG_ADDR_NR30 + 1);
-        nrx1ptr = (vu8*)REG_ADDR_NR41;
-        nrx2ptr = (vu8*)REG_ADDR_NR42;
-        nrx3ptr = (vu8*)REG_ADDR_NR43;
-        nrx4ptr = (vu8*)REG_ADDR_NR44;
-        break;
-    }
-
-    prevC15 = soundInfo->c15;
-    envelopeStepTimeAndDir = *nrx2ptr;
-
-    if (channels->statusFlags & SOUND_CHANNEL_SF_START) {
-      if (!(channels->statusFlags & SOUND_CHANNEL_SF_STOP)) {
-        channels->statusFlags = SOUND_CHANNEL_SF_ENV_ATTACK;
-        channels->modify = CGB_CHANNEL_MO_PIT | CGB_CHANNEL_MO_VOL;
-        CgbModVol(channels);
-        switch (ch) {
-          case 1:
-            *nrx0ptr = channels->sweep;
-            /* fallthrough */
-          case 2:
-            *nrx1ptr = (u8)(((u32)(uintptr_t)channels->wavePointer << 6) +
-                            channels->length);
-            goto init_env_step_time_dir;
-          case 3:
-            if (channels->wavePointer != channels->currentPointer) {
-              *nrx0ptr = 0x40;
-              REG_WAVE_RAM0 = channels->wavePointer[0];
-              REG_WAVE_RAM1 = channels->wavePointer[1];
-              REG_WAVE_RAM2 = channels->wavePointer[2];
-              REG_WAVE_RAM3 = channels->wavePointer[3];
-              channels->currentPointer = channels->wavePointer;
-            }
-            *nrx0ptr = 0;
-            *nrx1ptr = channels->length;
-            if (channels->length != 0) {
-              channels->n4 = 0xC0;
-            } else {
-              channels->n4 = 0x80;
-            }
-            break;
-          default:
-            *nrx1ptr = (u8)channels->length;
-            *nrx3ptr = (u8)((u32)(uintptr_t)channels->wavePointer << 3);
-          init_env_step_time_dir:
-            envelopeStepTimeAndDir =
-              channels->attack + CGB_NRx2_ENV_DIR_INC;
-            if (channels->length != 0) {
-              channels->n4 = 0x40;
-            } else {
-              channels->n4 = 0x00;
-            }
-            break;
-        }
-        channels->envelopeCounter = channels->attack;
-        if ((s8)(channels->attack & mask) != 0) {
-          channels->envelopeVolume = 0;
-          goto envelope_step_complete;
-        } else {
-          goto envelope_decay_start;
-        }
-      } else {
-        goto oscillator_off;
-      }
-    } else if (channels->statusFlags & SOUND_CHANNEL_SF_IEC) {
-      channels->pseudoEchoLength--;
-      if ((s8)(channels->pseudoEchoLength & mask) <= 0) {
-      oscillator_off:
-        CgbOscOff((u8)ch);
-        channels->statusFlags = 0;
-        goto channel_complete;
-      }
-      goto envelope_complete;
-    } else if ((channels->statusFlags & SOUND_CHANNEL_SF_STOP) &&
-               (channels->statusFlags & SOUND_CHANNEL_SF_ENV)) {
-      channels->statusFlags &= ~SOUND_CHANNEL_SF_ENV;
-      channels->envelopeCounter = channels->release;
-      if ((s8)(channels->release & mask) != 0) {
-        channels->modify |= CGB_CHANNEL_MO_VOL;
-        if (ch != 3) {
-          envelopeStepTimeAndDir =
-            channels->release | CGB_NRx2_ENV_DIR_DEC;
-        }
-        goto envelope_step_complete;
-      } else {
-        goto envelope_pseudoecho_start;
-      }
-    } else {
-    envelope_step_repeat:
-      if (channels->envelopeCounter == 0) {
-        if (ch == 3) {
-          channels->modify |= CGB_CHANNEL_MO_VOL;
-        }
-
-        CgbModVol(channels);
-        if ((channels->statusFlags & SOUND_CHANNEL_SF_ENV) ==
-            SOUND_CHANNEL_SF_ENV_RELEASE) {
-          channels->envelopeVolume--;
-          if ((s8)(channels->envelopeVolume & mask) <= 0) {
-          envelope_pseudoecho_start:
-            channels->envelopeVolume =
-              ((channels->envelopeGoal * channels->pseudoEchoVolume) + 0xFF) >>
-              8;
-            if (channels->envelopeVolume != 0) {
-              channels->statusFlags |= SOUND_CHANNEL_SF_IEC;
-              channels->modify |= CGB_CHANNEL_MO_VOL;
-              if (ch != 3) {
-                envelopeStepTimeAndDir = CGB_NRx2_ENV_DIR_INC;
-              }
-              goto envelope_complete;
-            } else {
-              goto oscillator_off;
-            }
-          } else {
-            channels->envelopeCounter = channels->release;
-          }
-        } else if ((channels->statusFlags & SOUND_CHANNEL_SF_ENV) ==
-                   SOUND_CHANNEL_SF_ENV_SUSTAIN) {
-        envelope_sustain:
-          channels->envelopeVolume = channels->sustainGoal;
-          channels->envelopeCounter = 7;
-        } else if ((channels->statusFlags & SOUND_CHANNEL_SF_ENV) ==
-                   SOUND_CHANNEL_SF_ENV_DECAY) {
-          int envelopeVolume;
-          int sustainGoal;
-
-          channels->envelopeVolume--;
-          envelopeVolume = (s8)(channels->envelopeVolume & mask);
-          sustainGoal = (s8)channels->sustainGoal;
-          if (envelopeVolume <= sustainGoal) {
-          envelope_sustain_start:
-            if (channels->sustain == 0) {
-              channels->statusFlags &= ~SOUND_CHANNEL_SF_ENV;
-              goto envelope_pseudoecho_start;
-            } else {
-              channels->statusFlags--;
-              channels->modify |= CGB_CHANNEL_MO_VOL;
-              if (ch != 3) {
-                envelopeStepTimeAndDir = CGB_NRx2_ENV_DIR_INC;
-              }
-              goto envelope_sustain;
-            }
-          } else {
-            channels->envelopeCounter = channels->decay;
-          }
-        } else {
-          channels->envelopeVolume++;
-          if ((u8)(channels->envelopeVolume & mask) >= channels->envelopeGoal) {
-          envelope_decay_start:
-            channels->statusFlags--;
-            channels->envelopeCounter = channels->decay;
-            if ((u8)(channels->envelopeCounter & mask) != 0) {
-              channels->modify |= CGB_CHANNEL_MO_VOL;
-              channels->envelopeVolume = channels->envelopeGoal;
-              if (ch != 3) {
-                envelopeStepTimeAndDir =
-                  channels->decay | CGB_NRx2_ENV_DIR_DEC;
-              }
-            } else {
-              goto envelope_sustain_start;
-            }
-          } else {
-            channels->envelopeCounter = channels->attack;
-          }
-        }
-      }
-    }
-
-  envelope_step_complete:
-    channels->envelopeCounter--;
-    if (prevC15 == 0) {
-      prevC15--;
-      goto envelope_step_repeat;
-    }
-
-  envelope_complete:
-    if (channels->modify & CGB_CHANNEL_MO_PIT) {
-      if (ch < 4 && (channels->type & TONEDATA_TYPE_FIX)) {
-        int dacPwmRate = REG_SOUNDBIAS_H;
-
-        if (dacPwmRate < 0x40) {
-          channels->frequency = (channels->frequency + 2) & 0x7FC;
-        } else if (dacPwmRate < 0x80) {
-          channels->frequency = (channels->frequency + 1) & 0x7FE;
-        }
-      }
-
-      if (ch != 4) {
-        *nrx3ptr = (u8)channels->frequency;
-      } else {
-        *nrx3ptr = (u8)((*nrx3ptr & 0x08) | channels->frequency);
-      }
-      channels->n4 = (channels->n4 & 0xC0) +
-                     (*((u8*)(&channels->frequency) + 1));
-      *nrx4ptr = (s8)(channels->n4 & mask);
-    }
-
-    if (channels->modify & CGB_CHANNEL_MO_VOL) {
-      REG_NR51 = (REG_NR51 & ~channels->panMask) | channels->pan;
-      if (ch == 3) {
-        *nrx2ptr = gCgb3Vol[channels->envelopeVolume];
-        if (channels->n4 & 0x80) {
-          *nrx0ptr = 0x80;
-          *nrx4ptr = channels->n4;
-          channels->n4 &= 0x7F;
-        }
-      } else {
-        u32 envMask = 0xF;
-
-        *nrx2ptr = (u8)((envelopeStepTimeAndDir & envMask) +
-                        (channels->envelopeVolume << 4));
-        *nrx4ptr = (u8)(channels->n4 | 0x80);
-        if (ch == 1 && !(*nrx0ptr & 0x08)) {
-          *nrx4ptr = (u8)(channels->n4 | 0x80);
-        }
-      }
-    }
-
-  channel_complete:
-    channels->modify = 0;
-  }
-}
-
-void
-MPlayExtender(struct CgbChannel* cgbChans)
-{
-  struct SoundInfo* soundInfo = SOUND_INFO_PTR;
-
-  REG_SOUNDCNT_X =
-    SOUND_MASTER_ENABLE | SOUND_4_ON | SOUND_3_ON | SOUND_2_ON | SOUND_1_ON;
-  REG_SOUNDCNT_L = 0;
-  REG_NR12 = 0x8;
-  REG_NR22 = 0x8;
-  REG_NR42 = 0x8;
-  REG_NR14 = 0x80;
-  REG_NR24 = 0x80;
-  REG_NR44 = 0x80;
-  REG_NR30 = 0;
-  REG_NR50 = 0x77;
-
-  if (soundInfo->ident != ID_NUMBER) {
+  if (chan->wav == NULL || chan->count == 0) {
+    chan->currentPointer = NULL;
     return;
   }
 
-  soundInfo->ident++;
-  gMPlayJumpTable[8] = (MPlayFunc)ply_memacc;
-  gMPlayJumpTable[17] = (MPlayFunc)ply_lfos;
-  gMPlayJumpTable[19] = (MPlayFunc)ply_mod;
-  gMPlayJumpTable[28] = (MPlayFunc)ply_xcmd;
-  gMPlayJumpTable[29] = (MPlayFunc)ply_endtie;
-  gMPlayJumpTable[30] = (MPlayFunc)SampleFreqSet;
-  gMPlayJumpTable[31] = (MPlayFunc)TrackStop;
-  gMPlayJumpTable[32] = (MPlayFunc)FadeOutBody;
-  gMPlayJumpTable[33] = (MPlayFunc)TrkVolPitSet;
-  soundInfo->cgbChans = cgbChans;
-  soundInfo->CgbSound = CgbSound;
-  soundInfo->CgbOscOff = CgbOscOff;
-  soundInfo->MidiKeyToCgbFreq = MidiKeyToCgbFreq;
-  soundInfo->maxLines = (u8)gMaxLines[0];
+  if (chan->type & TONEDATA_TYPE_CMP) {
+    if (chan->type & TONEDATA_TYPE_REV) {
+      chan->currentPointer = (s8*)(uintptr_t)chan->count;
+    } else {
+      chan->currentPointer = (s8*)(uintptr_t)(chan->wav->size - chan->count);
+    }
+    return;
+  }
 
-  memset(cgbChans, 0, sizeof(struct CgbChannel) * 4);
+  if (chan->type & TONEDATA_TYPE_REV) {
+    chan->currentPointer = (s8*)chan->wav->data + chan->count - 1;
+  } else {
+    chan->currentPointer =
+      (s8*)chan->wav->data + (chan->wav->size - chan->count);
+  }
+}
 
-  cgbChans[0].type = PFR_AUDIO_VOICE_SQUARE1;
-  cgbChans[0].panMask = 0x11;
-  cgbChans[1].type = PFR_AUDIO_VOICE_SQUARE2;
-  cgbChans[1].panMask = 0x22;
-  cgbChans[2].type = PFR_AUDIO_VOICE_PROGRAMMABLE_WAVE;
-  cgbChans[2].panMask = 0x44;
-  cgbChans[3].type = PFR_AUDIO_VOICE_NOISE;
-  cgbChans[3].panMask = 0x88;
+static void
+pfr_audio_channel_advance(struct SoundChannel* chan, u32 advance)
+{
+  u32 loopLength;
+  u32 overshoot;
 
-  soundInfo->ident = ID_NUMBER;
+  if (advance == 0 || chan->wav == NULL || chan->count == 0) {
+    return;
+  }
+
+  if (advance < chan->count) {
+    chan->count -= advance;
+    pfr_audio_channel_refresh_pointer(chan);
+    return;
+  }
+
+  if ((chan->statusFlags & SOUND_CHANNEL_SF_LOOP) &&
+      !(chan->type & TONEDATA_TYPE_REV) &&
+      chan->wav->loopStart < chan->wav->size) {
+    loopLength = chan->wav->size - chan->wav->loopStart;
+    if (loopLength == 0) {
+      chan->statusFlags = 0;
+      chan->count = 0;
+      chan->currentPointer = NULL;
+      return;
+    }
+
+    overshoot = advance - chan->count;
+    overshoot %= loopLength;
+    chan->count = loopLength - overshoot;
+    if (chan->count == 0) {
+      chan->count = loopLength;
+    }
+    pfr_audio_channel_refresh_pointer(chan);
+    return;
+  }
+
+  chan->statusFlags = 0;
+  chan->count = 0;
+  chan->currentPointer = NULL;
+}
+
+static void
+pfr_audio_prepare_driver_reverb(struct SoundInfo* si,
+                                u32 chunkOffset,
+                                u32 numSamples)
+{
+  s8* fifoA = &si->pcmBuffer[chunkOffset];
+  s8* fifoB = &si->pcmBuffer[PCM_DMA_BUF_SIZE + chunkOffset];
+  u32 frame;
+
+  if (numSamples == 0) {
+    return;
+  }
+
+  if (si->reverb == 0) {
+    memset(fifoA, 0, numSamples);
+    memset(fifoB, 0, numSamples);
+    return;
+  }
+
+  {
+    s8* prevA =
+      si->pcmDmaCounter == 2 ? &si->pcmBuffer[0] : &fifoA[numSamples];
+    s8* prevB = &si->pcmBuffer[PCM_DMA_BUF_SIZE + (prevA - si->pcmBuffer)];
+
+    for (frame = 0; frame < numSamples; frame++) {
+      s32 sample = fifoB[frame] + fifoA[frame] + prevB[frame] + prevA[frame];
+
+      sample = (sample * si->reverb) >> 9;
+      if ((sample & 0x80) != 0) {
+        sample++;
+      }
+
+      fifoA[frame] = (s8)sample;
+      fifoB[frame] = (s8)sample;
+    }
+  }
+}
+
+void
+pfr_audio_render_driver_pcm_chunk(struct SoundInfo* si,
+                                  u32 chunkOffset,
+                                  u32 numSamples)
+{
+  s8* fifoA = &si->pcmBuffer[chunkOffset];
+  s8* fifoB = &si->pcmBuffer[PCM_DMA_BUF_SIZE + chunkOffset];
+  u32 frame;
+
+  SoundMainRAM_EnvelopeStep(si);
+  pfr_audio_prepare_driver_reverb(si, chunkOffset, numSamples);
+
+  for (frame = 0; frame < numSamples; frame++) {
+    s32 mixA = fifoA[frame];
+    s32 mixB = fifoB[frame];
+    u32 ch;
+
+    for (ch = 0; ch < si->maxChans; ch++) {
+      struct SoundChannel* chan = &si->chans[ch];
+      s32 sample;
+      s32 nextSample;
+      u32 advance;
+      u32 phase;
+      u32 step;
+      u32 currentIndex;
+      u32 nextIndex;
+
+      if (!(chan->statusFlags & SOUND_CHANNEL_SF_ON)) {
+        continue;
+      }
+      if (!pfr_audio_channel_indices(chan, &currentIndex, &nextIndex)) {
+        continue;
+      }
+
+      sample = pfr_audio_channel_sample_at(chan, currentIndex);
+      nextSample = pfr_audio_channel_sample_at(chan, nextIndex);
+      phase = chan->fw;
+      if (chan->type & TONEDATA_TYPE_FIX) {
+        step = 0x800000u;
+      } else {
+        step = (u32)((u64)si->divFreq * (u64)chan->frequency);
+        sample +=
+          (s32)(((s64)phase * (s64)(nextSample - sample)) >> 23);
+      }
+
+      mixA += (sample * chan->envelopeVolumeRight) >> 8;
+      mixB += (sample * chan->envelopeVolumeLeft) >> 8;
+      phase += step;
+      advance = phase >> 23;
+      chan->fw = phase & 0x7FFFFFu;
+
+      if (advance > 0) {
+        pfr_audio_channel_advance(chan, advance);
+      }
+    }
+
+    fifoA[frame] = (s8)mixA;
+    fifoB[frame] = (s8)mixB;
+  }
 }
 
 void
@@ -628,7 +350,7 @@ ply_fine(struct MusicPlayerInfo* mplayInfo, struct MusicPlayerTrack* track)
 void
 ply_goto(struct MusicPlayerInfo* mplayInfo, struct MusicPlayerTrack* track)
 {
-  track->cmdPtr = pfr_port_resolve_pointer(mplayInfo, track);
+  track->cmdPtr = pfr_m4a_host_resolve_pointer(mplayInfo, track);
 }
 
 void
@@ -642,7 +364,7 @@ ply_patt(struct MusicPlayerInfo* mplayInfo, struct MusicPlayerTrack* track)
   track->patternStack[track->patternLevel] = track->cmdPtr + 4;
   track->patternLevel++;
 
-  track->cmdPtr = pfr_port_resolve_pointer(mplayInfo, track);
+  track->cmdPtr = pfr_m4a_host_resolve_pointer(mplayInfo, track);
 }
 
 void
@@ -664,7 +386,7 @@ ply_rept(struct MusicPlayerInfo* mplayInfo, struct MusicPlayerTrack* track)
 
   if (repeatCount == 0) {
     track->cmdPtr++;
-    track->cmdPtr = pfr_port_resolve_pointer(mplayInfo, track);
+    track->cmdPtr = pfr_m4a_host_resolve_pointer(mplayInfo, track);
     return;
   }
 
@@ -674,7 +396,7 @@ ply_rept(struct MusicPlayerInfo* mplayInfo, struct MusicPlayerTrack* track)
   track->cmdPtr++;
 
   if (track->repN < target) {
-    track->cmdPtr = pfr_port_resolve_pointer(mplayInfo, track);
+    track->cmdPtr = pfr_m4a_host_resolve_pointer(mplayInfo, track);
   } else {
     track->repN = 0;
     track->cmdPtr += 4;
@@ -895,7 +617,7 @@ ply_note(u32 note_cmd,
     }
 
     if ((type & TONEDATA_TYPE_SPL) != 0) {
-      subIndex = pfr_port_keysplit_table(&tone)[key];
+      subIndex = pfr_m4a_host_keysplit_table(&tone)[key];
     } else {
       subIndex = key;
     }
