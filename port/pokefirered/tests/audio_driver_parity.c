@@ -9,7 +9,9 @@
 
 #include "constants/songs.h"
 #include "gba/io_reg.h"
+#define SoundMainBTM pfr_hidden_SoundMainBTM_decl
 #include "gba/m4a_internal.h"
+#undef SoundMainBTM
 #include "m4a.h"
 #include "pfr/audio.h"
 #include "pfr/audio_assets.h"
@@ -17,6 +19,7 @@
 #include "pfr/m4a_1_host.h"
 
 extern void* const gMPlayJumpTableTemplate[];
+extern void SoundMainBTM(void* x);
 extern void
 SoundMainRAM_EnvelopeStep(struct SoundInfo* soundInfo);
 extern void

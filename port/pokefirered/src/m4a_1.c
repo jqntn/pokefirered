@@ -1,4 +1,6 @@
+#define SoundMainBTM pfr_hidden_SoundMainBTM_decl
 #include "gba/m4a_internal.h"
+#undef SoundMainBTM
 #include "global.h"
 #include "pfr/m4a_1_host.h"
 
@@ -12,6 +14,7 @@ extern const u8 gScaleTable[];
 extern const u32 gFreqTable[];
 extern void* const gMPlayJumpTableTemplate[];
 extern const s8 gDeltaEncodingTable[];
+extern void SoundMainBTM(void* x);
 
 u32
 umul3232H32(u32 multiplier, u32 multiplicand)
