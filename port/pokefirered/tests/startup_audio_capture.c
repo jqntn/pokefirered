@@ -398,7 +398,7 @@ pfr_print_usage(const char* program_name)
 {
   fprintf(stderr,
           "usage: %s --output-dir DIR --audio-manifest PATH\n"
-          "       [--mode game|demo|sandbox] [--input-manifest PATH]\n"
+          "       [--mode game|demo] [--input-manifest PATH]\n"
           "       [--auto-press-start-frame N]... [--manifest-out PATH]\n"
           "       [--save-path PATH]\n"
           "audio manifest lines: name|start_frame|frame_count|expected_hash\n",
@@ -414,10 +414,6 @@ pfr_parse_mode(const char* value)
 
   if (strcmp(value, "demo") == 0) {
     return PFR_MODE_DEMO;
-  }
-
-  if (strcmp(value, "sandbox") == 0) {
-    return PFR_MODE_SANDBOX;
   }
 
   fprintf(stderr, "invalid --mode value: %s\n", value);

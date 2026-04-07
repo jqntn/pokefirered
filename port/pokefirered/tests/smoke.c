@@ -338,7 +338,10 @@ test_gpu_regs(void)
 
   REG_VCOUNT = 0;
   REG_DISPCNT = 0;
-  SetGpuReg_ForcedBlank(REG_OFFSET_BG1VOFS, 55);
+  SetGpuReg(REG_OFFSET_BG1VOFS, 55);
+  assert(GetGpuReg(REG_OFFSET_BG1VOFS) == 55);
+  assert(REG_BG1VOFS == 0);
+  CopyBufferedValuesToGpuRegs();
   assert(REG_BG1VOFS == 55);
 
   EnableInterrupts(INTR_FLAG_VBLANK | INTR_FLAG_HBLANK);

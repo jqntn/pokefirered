@@ -9,7 +9,6 @@
 #include "pfr/demo.h"
 #include "pfr/main_runtime.h"
 #include "pfr/renderer.h"
-#include "pfr/sandbox.h"
 #include "pfr/storage.h"
 #include "task.h"
 
@@ -158,8 +157,6 @@ pfr_core_init(const char* save_path, PfrMode mode)
 
   if (mode == PFR_MODE_DEMO) {
     pfr_demo_boot();
-  } else if (mode == PFR_MODE_SANDBOX) {
-    pfr_sandbox_boot();
   } else {
     pfr_game_boot();
   }

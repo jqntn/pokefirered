@@ -30,12 +30,10 @@ function(pfr_define_native_tests)
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_title_flames_palette.cmake")
   add_test(
     NAME pfr_headless_boot
-    COMMAND pokefirered --mode game --headless --frames 1600 --quit-on-title)
+    COMMAND pokefirered --headless --frames 1600 --quit-on-title)
   add_test(
     NAME pfr_headless_main_menu
     COMMAND pokefirered
-            --mode
-            game
             --headless
             --frames
             2300
@@ -45,9 +43,6 @@ function(pfr_define_native_tests)
   add_test(
     NAME pfr_headless_demo
     COMMAND pokefirered --mode demo --headless --frames 3)
-  add_test(
-    NAME pfr_headless_sandbox
-    COMMAND pokefirered --mode sandbox --headless --frames 3)
   add_test(
     NAME pfr_audio_artifact_parity
     COMMAND ${Python3_EXECUTABLE}
@@ -78,8 +73,6 @@ function(pfr_define_native_tests)
   add_test(
     NAME pfr_startup_capture
     COMMAND pfr_startup_frame_capture
-            --mode
-            game
             --output-dir
             ${PFR_STARTUP_CAPTURE_OUTPUT_DIR}
             --manifest-out
@@ -89,8 +82,6 @@ function(pfr_define_native_tests)
   add_test(
     NAME pfr_startup_audio_capture
     COMMAND pfr_startup_audio_capture
-            --mode
-            game
             --output-dir
             ${PFR_STARTUP_AUDIO_OUTPUT_DIR}
             --manifest-out

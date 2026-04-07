@@ -34,8 +34,7 @@ extern void* gPfrSoundInfoPtr;
 typedef enum PfrMode
 {
   PFR_MODE_GAME,
-  PFR_MODE_DEMO,
-  PFR_MODE_SANDBOX
+  PFR_MODE_DEMO
 } PfrMode;
 
 void

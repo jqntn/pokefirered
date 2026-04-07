@@ -9,8 +9,6 @@ void
 CopyBufferedValuesToGpuRegs(void);
 void
 SetGpuReg(u8 regOffset, u16 value);
-void
-SetGpuReg_ForcedBlank(u8 regOffset, u16 value);
 u16
 GetGpuReg(u8 regOffset);
 void

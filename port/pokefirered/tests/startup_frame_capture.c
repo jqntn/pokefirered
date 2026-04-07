@@ -385,7 +385,7 @@ static void
 pfr_print_usage(const char* program_name)
 {
   fprintf(stderr,
-          "usage: %s --output-dir DIR [--mode game|demo|sandbox]\n"
+          "usage: %s --output-dir DIR [--mode game|demo]\n"
           "       [--frame N]... [--frame-manifest PATH]\n"
           "       [--auto-press-start-frame N]... [--input-manifest PATH]\n"
           "       [--manifest-out PATH]\n"
@@ -403,10 +403,6 @@ pfr_parse_mode(const char* value)
 
   if (strcmp(value, "demo") == 0) {
     return PFR_MODE_DEMO;
-  }
-
-  if (strcmp(value, "sandbox") == 0) {
-    return PFR_MODE_SANDBOX;
   }
 
   fprintf(stderr, "invalid --mode value: %s\n", value);

@@ -27,7 +27,7 @@ The native work lives under `port/pokefirered`.
 Current work includes:
 
 - booting through the original startup sequence
-- native runtime modes for `game`, `demo`, and `sandbox`
+- a native runtime for the original game flow
 - headless execution for automated checks
 - renderer work aimed at hardware-accurate visual behavior
 - smoke and integration coverage for PAL/runtime behavior
@@ -59,16 +59,17 @@ Other presets: `x64-release`, `linux-clang-release`, `linux-gcc-debug`, `linux-g
 From the native build directory:
 
 ```text
-pokefirered [--mode game|demo|sandbox] [--headless]
-            [--frames N] [--quit-on-title] [--quit-on-main-menu]
+pokefirered [--mode game|demo] [--headless] [--frames N]
+            [--quit-on-title] [--quit-on-main-menu]
             [--auto-press-start-frame N]... [--save-path PATH]
 ```
 
 Examples:
 
 ```powershell
-.\pokefirered.exe --mode game
-.\pokefirered.exe --mode game --headless --frames 1600 --quit-on-title
+.\pokefirered.exe
+.\pokefirered.exe --headless --frames 1600 --quit-on-title
+.\pokefirered.exe --mode demo
 ```
 
 ## Controls

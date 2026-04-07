@@ -51,7 +51,7 @@ static void
 pfr_print_usage(const char* program_name)
 {
   fprintf(stderr,
-          "usage: %s [--mode game|demo|sandbox] [--headless]\n"
+          "usage: %s [--mode game|demo] [--headless]\n"
           "       [--frames N] [--quit-on-title] [--quit-on-main-menu]\n"
           "       [--auto-press-start-frame N]... [--input-manifest PATH]\n"
           "       [--save-path PATH]\n",
@@ -68,11 +68,6 @@ pfr_parse_mode(const char* text, PfrMode* mode)
 
   if (strcmp(text, "demo") == 0) {
     *mode = PFR_MODE_DEMO;
-    return true;
-  }
-
-  if (strcmp(text, "sandbox") == 0) {
-    *mode = PFR_MODE_SANDBOX;
     return true;
   }
 

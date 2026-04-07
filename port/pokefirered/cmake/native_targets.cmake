@@ -44,12 +44,10 @@ function(pfr_define_native_runtime_targets)
       src/dma.c
       src/dma3.c
       src/demo.c
-      src/gpu_regs.c
       src/main_runtime.c
       src/renderer.c
       src/scripted_input.c
       src/storage.c
-      src/sandbox.c
       src/stubs.c
       src/syscall.c
       src/task.c
@@ -81,6 +79,7 @@ function(pfr_define_native_runtime_targets)
       ${PFR_GENERATED_STRINGS}
       ${PFR_GENERATED_INTRO}
       ../../src/bg.c
+      ../../src/gpu_regs.c
       ../../src/window.c
       ../../src/palette.c
       ../../src/sprite.c
