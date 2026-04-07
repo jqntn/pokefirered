@@ -40,34 +40,40 @@ pfr_add_preprocessed_c(
   "${PFR_ASSET_ROOT}"
   ${PFR_NATIVE_ASSET_FILES})
 
-pfr_generate_midi_asm(PFR_SONG_ASM_MUS_GAME_FREAK
-  "sound/mus_game_freak.s"
-  "${PFR_REPO_ROOT}/sound/songs/midi/mus_game_freak.mid")
-pfr_generate_midi_asm(PFR_SONG_ASM_MUS_INTRO_FIGHT
-  "sound/mus_intro_fight.s"
-  "${PFR_REPO_ROOT}/sound/songs/midi/mus_intro_fight.mid")
-pfr_generate_midi_asm(PFR_SONG_ASM_MUS_TITLE
-  "sound/mus_title.s"
-  "${PFR_REPO_ROOT}/sound/songs/midi/mus_title.mid")
-pfr_generate_midi_asm(PFR_SONG_ASM_SE_SELECT
-  "sound/se_select.s"
-  "${PFR_REPO_ROOT}/sound/songs/midi/se_select.mid")
+file(GLOB PFR_SOUND_MIDI_FILES
+  RELATIVE "${PFR_REPO_ROOT}"
+  "${PFR_REPO_ROOT}/sound/songs/midi/*.mid")
+list(SORT PFR_SOUND_MIDI_FILES)
+set(PFR_SOUND_MIDI_ASM_FILES "")
+foreach(midi_rel IN LISTS PFR_SOUND_MIDI_FILES)
+  get_filename_component(midi_stem "${midi_rel}" NAME_WE)
+  pfr_generate_midi_asm(midi_output
+    "sound/${midi_stem}.s"
+    "${PFR_REPO_ROOT}/${midi_rel}")
+  list(APPEND PFR_SOUND_MIDI_ASM_FILES "${midi_output}")
+endforeach()
 
 file(GLOB_RECURSE PFR_SOUND_WAV_FILES
   "${PFR_REPO_ROOT}/sound/direct_sound_samples/*.wav")
-set(PFR_SOUND_WAV_ASM_FILES "")
+set(PFR_SOUND_WAV_BIN_FILES "")
 foreach(wav_file IN LISTS PFR_SOUND_WAV_FILES)
   file(RELATIVE_PATH wav_rel "${PFR_REPO_ROOT}" "${wav_file}")
-  string(REGEX REPLACE "\\.wav$" ".s" asm_rel "${wav_rel}")
-  pfr_generate_wav_asm(wav_asm_output "${asm_rel}" "${wav_file}")
-  list(APPEND PFR_SOUND_WAV_ASM_FILES "${wav_asm_output}")
+  string(REGEX REPLACE "\\.wav$" ".bin" bin_rel "${wav_rel}")
+  if(wav_rel MATCHES "^sound/direct_sound_samples/cries/")
+    pfr_generate_wav_bin(wav_bin_output "${bin_rel}" "${wav_file}" -c -l 1 --no-pad)
+  else()
+    pfr_generate_wav_bin(wav_bin_output "${bin_rel}" "${wav_file}")
+  endif()
+  list(APPEND PFR_SOUND_WAV_BIN_FILES "${wav_bin_output}")
 endforeach()
 
 set(PFR_GENERATED_AUDIO_ASSETS_C
     "${PFR_GENERATED_DIR}/audio_assets.native.c")
+set(PFR_GENERATED_AUDIO_ASSET_MANIFEST
+    "${PFR_GENERATED_DIR}/audio_assets.native.json")
 
 add_custom_command(
-  OUTPUT ${PFR_GENERATED_AUDIO_ASSETS_C}
+  OUTPUT ${PFR_GENERATED_AUDIO_ASSETS_C} ${PFR_GENERATED_AUDIO_ASSET_MANIFEST}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${PFR_GENERATED_DIR}
   COMMAND
     ${Python3_EXECUTABLE}
@@ -78,24 +84,19 @@ add_custom_command(
     "${PFR_ASSET_ROOT}"
     --out-c
     "${PFR_GENERATED_AUDIO_ASSETS_C}"
-    --asset sound/mus_game_freak.s
-    --asset sound/mus_intro_fight.s
-    --asset sound/mus_title.s
-    --asset sound/se_select.s
-    --asset sound/direct_sound_samples/cries/charizard.s
-    --asset sound/direct_sound_samples/cries/nidorino.s
+    --manifest-out
+    "${PFR_GENERATED_AUDIO_ASSET_MANIFEST}"
   DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/audio_asset_tool.py"
     "${PFR_REPO_ROOT}/sound/MPlayDef.s"
+    "${PFR_REPO_ROOT}/sound/direct_sound_data.inc"
     "${PFR_REPO_ROOT}/sound/keysplit_tables.inc"
+    "${PFR_REPO_ROOT}/sound/programmable_wave_data.inc"
     "${PFR_REPO_ROOT}/sound/song_table.inc"
     "${PFR_REPO_ROOT}/sound/voice_groups.inc"
-    "${PFR_REPO_ROOT}/include/constants/species.h"
-    ${PFR_SOUND_WAV_ASM_FILES}
-    ${PFR_SONG_ASM_MUS_GAME_FREAK}
-    ${PFR_SONG_ASM_MUS_INTRO_FIGHT}
-    ${PFR_SONG_ASM_MUS_TITLE}
-    ${PFR_SONG_ASM_SE_SELECT}
+    "${PFR_REPO_ROOT}/sound/cry_tables.inc"
+    ${PFR_SOUND_WAV_BIN_FILES}
+    ${PFR_SOUND_MIDI_ASM_FILES}
   VERBATIM)
 
 set(PFR_GENERATED_AUDIO_ASSETS ${PFR_GENERATED_AUDIO_ASSETS_C})

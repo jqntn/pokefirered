@@ -235,8 +235,8 @@ extern struct SaveBlock2* gSaveBlock2Ptr;
 /* ---- Additional constant headers that original global.h pulls in ------- */
 #include "../../../include/constants/game_stat.h"
 
-/* ---- Stub includes for headers that the original global.h chains to ---- */
-/* These are lightweight forwarding stubs in the port's include directory.   */
+/* ---- Additional headers that the original global.h chains to ------------ */
+/* Port-specific shims can shadow repo headers via include path order.       */
 #include "fame_checker.h"
 #include "global.berry.h"
 #include "global.fieldmap.h"

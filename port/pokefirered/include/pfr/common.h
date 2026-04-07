@@ -17,7 +17,13 @@ enum
   PFR_IO_SIZE = 0x400,
   PFR_SAVE_SIZE = 128 * 1024,
   PFR_MAX_PATH = 1024,
-  PFR_DEFAULT_AUDIO_SAMPLE_RATE = 13379,
+  // Final host mix rate. Using the hardware-style 65536 Hz host path keeps
+  // PSG/CGB voices from aliasing as aggressively as they do at 32768 Hz.
+  PFR_DEFAULT_AUDIO_SAMPLE_RATE = 65536,
+  // Original m4a DirectSound rate selected by SOUND_MODE_FREQ_13379.
+  PFR_DRIVER_PCM_SAMPLE_RATE = 13379,
+  PFR_DRIVER_PCM_FRAMES_PER_VBLANK = 224,
+  PFR_AUDIO_FRAMES_PER_GBA_FRAME = 1097,
 };
 
 #define PFR_ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))

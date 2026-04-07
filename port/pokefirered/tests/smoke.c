@@ -3,6 +3,7 @@
 #endif
 
 #include <assert.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,7 +37,9 @@ typedef struct PfrAudioWindow
   int remaining_frames;
   bool active;
   bool done;
-  uint32_t hash;
+  uint32_t absmax;
+  uint64_t sumsq;
+  size_t sample_count;
 } PfrAudioWindow;
 
 static void
@@ -48,7 +51,9 @@ test_audio_window_begin(PfrAudioWindow* window,
   window->remaining_frames = frame_count;
   window->active = true;
   window->done = false;
-  window->hash = 2166136261u;
+  window->absmax = 0;
+  window->sumsq = 0;
+  window->sample_count = 0;
 }
 
 static void
@@ -63,18 +68,30 @@ test_audio_window_feed(PfrAudioWindow* window,
   }
 
   for (i = 0; i < sample_count; i++) {
-    uint16_t sample_bits = (uint16_t)samples[i];
+    int32_t sample = samples[i];
+    uint32_t magnitude = (uint32_t)(sample < 0 ? -sample : sample);
 
-    window->hash ^= (uint8_t)(sample_bits & 0xFF);
-    window->hash *= 16777619u;
-    window->hash ^= (uint8_t)(sample_bits >> 8);
-    window->hash *= 16777619u;
+    if (magnitude > window->absmax) {
+      window->absmax = magnitude;
+    }
+    window->sumsq += (uint64_t)(sample * sample);
+    window->sample_count++;
   }
 
   if (--window->remaining_frames == 0) {
     window->active = false;
     window->done = true;
   }
+}
+
+static double
+test_audio_window_rms(const PfrAudioWindow* window)
+{
+  if (window->sample_count == 0) {
+    return 0.0;
+  }
+
+  return sqrt((double)window->sumsq / (double)window->sample_count);
 }
 
 static void
@@ -1249,7 +1266,7 @@ static void
 test_core_and_audio(void)
 {
   PfrAudioStats stats;
-  int16_t frame_audio[224 * PFR_AUDIO_CHANNEL_COUNT];
+  int16_t frame_audio[PFR_AUDIO_FRAMES_PER_GBA_FRAME * PFR_AUDIO_CHANNEL_COUNT];
   PfrAudioWindow intro_window = { 0 };
   PfrAudioWindow title_window = { 0 };
   PfrAudioWindow cry_window = { 0 };
@@ -1317,7 +1334,9 @@ test_core_and_audio(void)
       }
     }
 
-    assert(pfr_audio_drain_source_frames(frame_audio, 224) == 224);
+    assert(pfr_audio_drain_source_frames(frame_audio,
+                                         PFR_AUDIO_FRAMES_PER_GBA_FRAME) ==
+           PFR_AUDIO_FRAMES_PER_GBA_FRAME);
     test_audio_window_feed(
       &intro_window, frame_audio, PFR_ARRAY_COUNT(frame_audio));
     test_audio_window_feed(
@@ -1343,10 +1362,14 @@ test_core_and_audio(void)
   assert(title_window.done);
   assert(cry_window.done);
   assert(menu_window.done);
-  assert(intro_window.hash == 0x2E85EDC5u);
-  assert(title_window.hash == 0x62B33A8Au);
-  assert(cry_window.hash == 0x6ED3C934u);
-  assert(menu_window.hash == 0xBCB536C2u);
+  assert(intro_window.absmax == 0);
+  assert(test_audio_window_rms(&intro_window) == 0.0);
+  assert(title_window.absmax > 2048);
+  assert(test_audio_window_rms(&title_window) > 512.0);
+  assert(cry_window.absmax > 2048);
+  assert(test_audio_window_rms(&cry_window) > 512.0);
+  assert(menu_window.absmax > 2048);
+  assert(test_audio_window_rms(&menu_window) > 512.0);
 
   gPfrRuntimeState.save[0] = 42;
   gPfrRuntimeState.save_dirty = true;

@@ -2,11 +2,14 @@ function(pfr_define_native_tests)
   pfr_add_port_test_executable(pfr_smoke tests/smoke.c)
   pfr_add_port_test_executable(pfr_integration tests/integration.c)
   pfr_add_port_test_executable(
+    pfr_audio_driver_parity tests/audio_driver_parity.c)
+  pfr_add_port_test_executable(
     pfr_startup_frame_capture tests/startup_frame_capture.c)
   pfr_add_port_test_executable(
     pfr_startup_audio_capture tests/startup_audio_capture.c)
 
   add_test(NAME pfr_smoke COMMAND pfr_smoke)
+  add_test(NAME pfr_audio_driver_parity COMMAND pfr_audio_driver_parity)
   add_test(
     NAME pfr_asset_title_border_bg
     COMMAND ${CMAKE_COMMAND}
@@ -45,6 +48,16 @@ function(pfr_define_native_tests)
   add_test(
     NAME pfr_headless_sandbox
     COMMAND pokefirered --mode sandbox --headless --frames 3)
+  add_test(
+    NAME pfr_audio_artifact_parity
+    COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/check_audio_artifact_parity.py"
+            --repo-root
+            "${PFR_REPO_ROOT}"
+            --asset-root
+            "${PFR_ASSET_ROOT}"
+            --manifest
+            "${PFR_GENERATED_AUDIO_ASSET_MANIFEST}")
   add_test(NAME pfr_integration COMMAND pfr_integration)
 
   set(PFR_STARTUP_FRAME_MANIFEST

@@ -38,7 +38,8 @@ endfunction()
 function(pfr_define_native_runtime_targets)
   set(PFR_CORE_SOURCES
       src/audio.c
-      src/audio_runtime.c
+      src/m4a_1_host.c
+      src/m4a_1.c
       src/core.c
       src/dma.c
       src/dma3.c
@@ -69,7 +70,9 @@ function(pfr_define_native_runtime_targets)
   set(PFR_GAME_SOURCES
       ../../src/random.c
       ../../src/malloc.c
-      src/sound_runtime.c
+      ../../src/sound.c
+      src/m4a_include.c
+      ../../src/m4a_tables.c
       ../../src/string_util.c
       ${PFR_GENERATED_TEXT}
       ../../src/blend_palette.c
