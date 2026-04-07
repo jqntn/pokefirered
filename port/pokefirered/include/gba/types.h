@@ -55,28 +55,24 @@ struct PlttData
   u16 unused_15 : 1;
 };
 
-/*
- * Host compilers may otherwise pad this bitfield struct differently than the
- * 8-byte GBA layout the game assumes when copying OAM buffers.
- */
 #pragma pack(push, 1)
 struct OamData
 {
-  /*0x00*/ u32 y : 8;
-  /*0x01*/ u32 affineMode : 2;
+  u32 y : 8;
+  u32 affineMode : 2;
   u32 objMode : 2;
   u32 mosaic : 1;
   u32 bpp : 1;
   u32 shape : 2;
 
-  /*0x02*/ u32 x : 9;
+  u32 x : 9;
   u32 matrixNum : 5;
   u32 size : 2;
 
-  /*0x04*/ u16 tileNum : 10;
+  u16 tileNum : 10;
   u16 priority : 2;
   u16 paletteNum : 4;
-  /*0x06*/ u16 affineParam;
+  u16 affineParam;
 };
 #pragma pack(pop)
 

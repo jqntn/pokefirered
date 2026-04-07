@@ -20,7 +20,6 @@
 #define asm_unified(x)
 
 #if defined(_MSC_VER) && __STDC_VERSION__ < 202311L
-/* MSVC C mode lacks the GNU asm keyword. */
 #define asm __noop
 #endif
 
@@ -36,9 +35,9 @@
 
 #if defined(_MSC_VER)
 #define __attribute__(x)
-#pragma warning(disable : 4200) /* zero-sized array in struct */
-#pragma warning(disable : 4201) /* nameless struct/union */
-#pragma warning(disable : 4214) /* bit field types other than int */
+#pragma warning(disable : 4200)
+#pragma warning(disable : 4201)
+#pragma warning(disable : 4214)
 #endif
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
@@ -88,7 +87,6 @@
   ((ptr)[0] + ((ptr)[1] << 8) + ((ptr)[2] << 16) + ((ptr)[3] << 24))
 #define T2_READ_PTR(ptr) (void*)T2_READ_32(ptr)
 
-/* The original uses a GCC statement expression here; MSVC cannot. */
 #define TEST_BUTTON(field, button) ((field) & (button))
 #define JOY_NEW(button) TEST_BUTTON(gMain.newKeys, button)
 #define JOY_HELD(button) TEST_BUTTON(gMain.heldKeys, button)

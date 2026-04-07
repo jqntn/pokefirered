@@ -93,7 +93,6 @@ pfr_core_simulate_scanlines(void)
 
   pfr_renderer_begin_frame_capture();
 
-  /* The main callback runs before WaitForVBlank in hardware order. */
   for (scanline = DISPLAY_HEIGHT; scanline < 228; scanline++) {
     REG_VCOUNT = (u16)scanline;
 

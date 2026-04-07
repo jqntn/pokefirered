@@ -603,7 +603,6 @@ class AudioAssetTool:
 
     lines.append("static const struct ToneData sPfrVoiceData[] = {")
     for group in self.voice_group_order:
-      lines.append(f"  /* {group} */")
       for entry in self.voice_groups[group]:
         if entry.kind == "directsound":
           wav_ref = f"(struct WaveData *)&sPfrWave_{entry.ref}"

@@ -22,7 +22,6 @@ extern const u8 gCgb3Vol[];
 
 enum
 {
-  /* Expand the 4-bit PSG envelope into the host mix domain. */
   PFR_AUDIO_CGB_LEVEL_SCALE = 256,
 };
 
@@ -99,7 +98,6 @@ pfr_audio_output_hpf_q16(u32 sampleRate)
     return 0;
   }
 
-  /* Pan Docs models the GBA output HPF as 0.999958^(4194304 / rate). */
   coeff = pow(0.999958, 4194304.0 / (double)sampleRate);
   if (coeff < 0.0) {
     coeff = 0.0;
