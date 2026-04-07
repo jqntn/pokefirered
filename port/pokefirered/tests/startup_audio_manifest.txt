@@ -1,0 +1,5 @@
+# name|start_frame|frame_count|expected_hash
+intro|0|120|2E85EDC5
+title|1425|90|62B33A8A
+cry|1425|45|6ED3C934
+menu|2095|20|BCB536C2

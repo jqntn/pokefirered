@@ -277,7 +277,7 @@ void CopyGlyphToWindow(struct TextPrinter *textPrinter)
 }
 
 // Unused
-static void CopyGlyphToWindow_Parameterized(void *tileData, u16 currentX, u16 currentY, u16 width, u16 height)
+static void CopyGlyphToWindow_Parameterized(u8 *tileData, u16 currentX, u16 currentY, u16 width, u16 height)
 {
     int glyphWidth, glyphHeight;
     u8 sizeType;

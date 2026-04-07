@@ -1,0 +1,203 @@
+#ifndef GUARD_GLOBAL_H
+#define GUARD_GLOBAL_H
+
+#include "config.h"
+#include "gba/gba.h"
+#include "pfr/stubs.h"
+
+#include <string.h>
+
+#include "../../../include/constants/easy_chat.h"
+#include "../../../include/constants/flags.h"
+#include "../../../include/constants/pokedex.h"
+#include "../../../include/constants/rgb.h"
+#include "../../../include/constants/species.h"
+#include "../../../include/constants/vars.h"
+
+#define BLOCK_CROSS_JUMP
+
+#define asm_comment(x)
+#define asm_unified(x)
+
+#if defined(_MSC_VER) && __STDC_VERSION__ < 202311L
+#define asm __noop
+#endif
+
+#define _(x) (x)
+#define __(x) (x)
+#define INCBIN(...) { 0, 0, 0, 0 }
+#define INCBIN_U8 INCBIN
+#define INCBIN_U16 INCBIN
+#define INCBIN_U32 INCBIN
+#define INCBIN_S8 INCBIN
+#define INCBIN_S16 INCBIN
+#define INCBIN_S32 INCBIN
+
+#if defined(_MSC_VER)
+#define __attribute__(x)
+#pragma warning(disable : 4200)
+#pragma warning(disable : 4201)
+#pragma warning(disable : 4214)
+#endif
+
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
+#define NELEMS(array) ARRAY_COUNT(array)
+
+#define SWAP(a, b, temp)                                                       \
+  {                                                                            \
+    temp = a;                                                                  \
+    a = b;                                                                     \
+    b = temp;                                                                  \
+  }
+
+#define Q_8_8(n) ((s16)((n) * 256))
+#define Q_8_8_TO_INT(n) ((s16)((n) >> 8))
+#define Q_4_12(n) ((s16)((n) * 4096))
+#define Q_4_12_TO_INT(n) ((s16)((n) >> 12))
+#define Q_N_S(s, n) ((s16)((n) * (1 << (s))))
+#define Q_N_S_TO_INT(s, n) ((s16)((n) >> (s)))
+#define Q_24_8(n) ((s32)((n) << 8))
+#define Q_24_8_TO_INT(n) ((s32)((n) >> 8))
+
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) >= (b) ? (a) : (b))
+
+#if MODERN
+#define abs(x) (((x) < 0) ? -(x) : (x))
+#endif
+
+#ifdef UBFIX
+#define SAFE_DIV(a, b) ((b) ? (a) / (b) : 0)
+#else
+#define SAFE_DIV(a, b) ((a) / (b))
+#endif
+
+#define HIHALF(n) (((n) & 0xFFFF0000) >> 16)
+#define LOHALF(n) ((n) & 0xFFFF)
+
+#define T1_READ_8(ptr) ((ptr)[0])
+#define T1_READ_16(ptr) ((ptr)[0] | ((ptr)[1] << 8))
+#define T1_READ_32(ptr)                                                        \
+  ((ptr)[0] | ((ptr)[1] << 8) | ((ptr)[2] << 16) | ((ptr)[3] << 24))
+#define T1_READ_PTR(ptr) (u8*)T1_READ_32(ptr)
+
+#define T2_READ_8(ptr) ((ptr)[0])
+#define T2_READ_16(ptr) ((ptr)[0] + ((ptr)[1] << 8))
+#define T2_READ_32(ptr)                                                        \
+  ((ptr)[0] + ((ptr)[1] << 8) + ((ptr)[2] << 16) + ((ptr)[3] << 24))
+#define T2_READ_PTR(ptr) (void*)T2_READ_32(ptr)
+
+#define TEST_BUTTON(field, button) ((field) & (button))
+#define JOY_NEW(button) TEST_BUTTON(gMain.newKeys, button)
+#define JOY_HELD(button) TEST_BUTTON(gMain.heldKeys, button)
+#define JOY_HELD_RAW(button) TEST_BUTTON(gMain.heldKeysRaw, button)
+#define JOY_REPT(button) TEST_BUTTON(gMain.newAndRepeatedKeys, button)
+
+extern u8 gStringVar1[];
+extern u8 gStringVar2[];
+extern u8 gStringVar3[];
+extern u8 gStringVar4[];
+
+#define DIV_ROUND_UP(val, roundBy)                                             \
+  (((val) / (roundBy)) + (((val) % (roundBy)) ? 1 : 0))
+
+#define ROUND_BITS_TO_BYTES(numBits) DIV_ROUND_UP(numBits, 8)
+
+#define DEX_FLAGS_NO ROUND_BITS_TO_BYTES(NUM_SPECIES)
+#define NUM_FLAG_BYTES ROUND_BITS_TO_BYTES(FLAGS_COUNT)
+#define NUM_ADDITIONAL_PHRASE_BYTES ROUND_BITS_TO_BYTES(NUM_ADDITIONAL_PHRASES)
+
+#define NARG_8(...) NARG_8_(_, ##__VA_ARGS__, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#define NARG_8_(_, a, b, c, d, e, f, g, h, N, ...) N
+
+#define CAT(a, b) CAT_(a, b)
+#define CAT_(a, b) a##b
+
+#define STATIC_ASSERT(expr, id) typedef char id[(expr) ? 1 : -1];
+
+struct Coords8
+{
+  s8 x;
+  s8 y;
+};
+
+struct UCoords8
+{
+  u8 x;
+  u8 y;
+};
+
+struct Coords16
+{
+  s16 x;
+  s16 y;
+};
+
+struct UCoords16
+{
+  u16 x;
+  u16 y;
+};
+
+struct Coords32
+{
+  s32 x;
+  s32 y;
+};
+
+struct UCoords32
+{
+  u32 x;
+  u32 y;
+};
+
+struct Time
+{
+  s16 days;
+  s8 hours;
+  s8 minutes;
+  s8 seconds;
+};
+
+struct SaveBlock1
+{
+  u8 _pad_0[0x9FC];
+  u8 rivalName[PLAYER_NAME_LENGTH];
+  u8 _pad_A04[0x3DE0];
+};
+
+struct SaveBlock2
+{
+  u8 playerName[PLAYER_NAME_LENGTH + 1];
+  u8 playerGender;
+  u8 specialSaveWarpFlags;
+  u8 playerTrainerId[TRAINER_ID_LENGTH];
+  u16 playTimeHours;
+  u8 playTimeMinutes;
+  u8 playTimeSeconds;
+  u8 playTimeVBlanks;
+  u8 optionsButtonMode;
+  u16 optionsTextSpeed : 3;
+  u16 optionsWindowFrameType : 5;
+  u16 optionsSound : 1;
+  u16 optionsBattleStyle : 1;
+  u16 optionsBattleSceneOff : 1;
+  u16 regionMapZoom : 1;
+  u8 _pad_16[0xF0E];
+};
+
+extern struct SaveBlock1* gSaveBlock1Ptr;
+extern struct SaveBlock2* gSaveBlock2Ptr;
+
+#include "main.h"
+
+#include "../../../include/constants/game_stat.h"
+
+#include "global.berry.h"
+
+struct ObjectEvent;
+struct ObjectEventTemplate;
+
+#include "pokemon.h"
+
+#endif

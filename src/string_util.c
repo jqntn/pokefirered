@@ -27,19 +27,19 @@ static const s32 sPowersOfTen[] =
     1000000000,
 };
 
-extern u8 gExpandedPlaceholder_Empty[];
-extern u8 gExpandedPlaceholder_Kun[];
-extern u8 gExpandedPlaceholder_Chan[];
-extern u8 gExpandedPlaceholder_Sapphire[];
-extern u8 gExpandedPlaceholder_Ruby[];
-extern u8 gExpandedPlaceholder_Aqua[];
-extern u8 gExpandedPlaceholder_Magma[];
-extern u8 gExpandedPlaceholder_Archie[];
-extern u8 gExpandedPlaceholder_Maxie[];
-extern u8 gExpandedPlaceholder_Kyogre[];
-extern u8 gExpandedPlaceholder_Groudon[];
-extern u8 gExpandedPlaceholder_Red[];
-extern u8 gExpandedPlaceholder_Green[];
+extern const u8 gExpandedPlaceholder_Empty[];
+extern const u8 gExpandedPlaceholder_Kun[];
+extern const u8 gExpandedPlaceholder_Chan[];
+extern const u8 gExpandedPlaceholder_Sapphire[];
+extern const u8 gExpandedPlaceholder_Ruby[];
+extern const u8 gExpandedPlaceholder_Aqua[];
+extern const u8 gExpandedPlaceholder_Magma[];
+extern const u8 gExpandedPlaceholder_Archie[];
+extern const u8 gExpandedPlaceholder_Maxie[];
+extern const u8 gExpandedPlaceholder_Kyogre[];
+extern const u8 gExpandedPlaceholder_Groudon[];
+extern const u8 gExpandedPlaceholder_Red[];
+extern const u8 gExpandedPlaceholder_Green[];
 
 u8 *StringCopy_Nickname(u8 *dest, const u8 *src)
 {

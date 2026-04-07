@@ -835,11 +835,11 @@ void CopyToBgTilemapBuffer(u8 bg, const void *src, u16 mode, u16 destOffset)
     {
         if (mode != 0)
         {
-            CpuCopy16(src, (void *)(sGpuBgConfigs2[bg].tilemap + (destOffset * 32)), mode);
+            CpuCopy16(src, (void *)((u8 *)sGpuBgConfigs2[bg].tilemap + (destOffset * 32)), mode);
         }
         else
         {
-            LZ77UnCompWram(src, (void *)(sGpuBgConfigs2[bg].tilemap + (destOffset * 32)));
+            LZ77UnCompWram(src, (void *)((u8 *)sGpuBgConfigs2[bg].tilemap + (destOffset * 32)));
         }
     }
 }
@@ -925,29 +925,29 @@ void CopyRectToBgTilemapBufferRect(u8 bg, const void *src, u8 srcX, u8 srcY, u8 
         switch (GetBgType(bg))
         {
         case 0:
-            srcPtr = src + ((srcY * srcWidth) + srcX) * 2;
+            srcPtr = (const u8 *)src + ((srcY * srcWidth) + srcX) * 2;
             for (i = destY; i < (destY + rectHeight); i++)
             {
                 for (j = destX; j < (destX + rectWidth); j++)
                 {
                     u16 index = GetTileMapIndexFromCoords(j, i, screenSize, screenWidth, screenHeight);
-                    CopyTileMapEntry(srcPtr, sGpuBgConfigs2[bg].tilemap + (index * 2), palette1, tileOffset, palette2);
-                    srcPtr += 2;
+                    CopyTileMapEntry((const u16 *)srcPtr, (u16 *)((u8 *)sGpuBgConfigs2[bg].tilemap + (index * 2)), palette1, tileOffset, palette2);
+                    srcPtr = (const u8 *)srcPtr + 2;
                 }
-                srcPtr += (srcWidth - rectWidth) * 2;
+                srcPtr = (const u8 *)srcPtr + (srcWidth - rectWidth) * 2;
             }
             break;
         case 1:
-            srcPtr = src + ((srcY * srcWidth) + srcX);
+            srcPtr = (const u8 *)src + ((srcY * srcWidth) + srcX);
             var = GetBgMetricAffineMode(bg, 0x1);
             for (i = destY; i < (destY + rectHeight); i++)
             {
                 for (j = destX; j < (destX + rectWidth); j++)
                 {
-                    *(u8 *)(sGpuBgConfigs2[bg].tilemap + ((var * i) + j)) = *(u8 *)(srcPtr) + tileOffset;
-                    srcPtr++;
+                    *(u8 *)((u8 *)sGpuBgConfigs2[bg].tilemap + ((var * i) + j)) = *(u8 *)(srcPtr) + tileOffset;
+                    srcPtr = (const u8 *)srcPtr + 1;
                 }
-                srcPtr += (srcWidth - rectWidth);
+                srcPtr = (const u8 *)srcPtr + (srcWidth - rectWidth);
             }
             break;
         }
@@ -1137,21 +1137,20 @@ void CopyTileMapEntry(const u16 *src, u16 *dest, s32 palette1, s32 tileOffset, s
 {
     u16 var;
 
-    switch (palette1)
+    if (palette1 >= 0 && palette1 <= 15)
     {
-    case 0 ... 15:
         var = ((*src + tileOffset) & 0xFFF) + ((palette1 + palette2) << 12);
-        break;
-    case 16:
+    }
+    else if (palette1 == 16)
+    {
         var = *dest;
         var &= 0xFC00;
         var += palette2 << 12;
         var |= (*src + tileOffset) & 0x3FF;
-        break;
-    default:
-    case 17 ... INT_MAX:
+    }
+    else
+    {
         var = *src + tileOffset + (palette2 << 12);
-        break;
     }
     *dest = var;
 }

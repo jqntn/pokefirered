@@ -1,16 +1,114 @@
-# Pokémon FireRed and LeafGreen
+# Pokémon FireRed Desktop Port
 
-This is a decompilation of English Pokémon FireRed and LeafGreen.
+Platform abstraction layer for Pokémon FireRed that bridges decompiled game code to a native desktop runtime with hardware-accurate behavior.
 
-It builds the following ROM images:
+![Pokémon FireRed Desktop Port screenshot](readme-assets/pokefirered.png)
 
-* [**pokefirered.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1616) `sha1: 41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc`
-* [**pokeleafgreen.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1617) `sha1: 574fa542ffebb14be69902d1d36f1ec0a4afd71e`
-* [**pokefirered_rev1.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1672) `sha1: dd5945db9b930750cb39d00c84da8571feebf417`
-* [**pokeleafgreen_rev1.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=1668) `sha1: 7862c67bdecbe21d1d69ce082ce34327e1c6ed5e`
-* [**pokefirered_switch.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=x550) `sha1: baa452d0b24629dd7782cfc07a8984085dde1311`
-* [**pokeleafgreen_switch.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=x551) `sha1: 62b9fc77549dbc67032eb6cbd0ea6ad3b825690f`
+## What This Fork Is
 
-To set up the repository, see [INSTALL.md](INSTALL.md).
+This fork builds a native desktop runtime around the decompiled FireRed codebase.
 
-For contacts and other pret projects, see [pret.github.io](https://pret.github.io/).
+It keeps original game logic, data, and flow intact while replacing GBA-facing platform pieces with host implementations for:
+
+- rendering
+- input
+- audio
+- save storage
+- timing
+- runtime boot flow
+- automated testing
+
+The native layer acts as a PAL between the original game code and a desktop executable, with fidelity to GBA behavior as the bar for correctness.
+
+## Current Scope
+
+The native work lives under `port/pokefirered`.
+
+Current work includes:
+
+- booting through the original startup sequence
+- a native runtime for the original game flow
+- headless execution for automated checks
+- renderer work aimed at hardware-accurate visual behavior
+- smoke and integration coverage for PAL/runtime behavior
+
+## Building
+
+The native build uses CMake. Presets are defined in `port/pokefirered/CMakePresets.json`.
+
+### Windows
+
+```powershell
+cd port/pokefirered
+cmake --preset x64-debug
+cmake --build out/build/x64-debug
+```
+
+### Linux
+
+```bash
+cd port/pokefirered
+cmake --preset linux-clang-debug
+cmake --build out/build/linux-clang-debug
+```
+
+Other presets: `x64-release`, `linux-clang-release`, `linux-gcc-debug`, `linux-gcc-release`.
+
+## Running
+
+From the native build directory:
+
+```text
+pokefirered [--mode game|demo] [--headless] [--frames N]
+            [--quit-on-title] [--quit-on-main-menu]
+            [--auto-press-start-frame N]... [--save-path PATH]
+```
+
+Examples:
+
+```powershell
+.\pokefirered.exe
+.\pokefirered.exe --headless --frames 1600 --quit-on-title
+.\pokefirered.exe --mode demo
+```
+
+## Controls
+
+Current desktop controls:
+
+### Keyboard
+
+- Arrow keys: `D-Pad`
+- X: `A`
+- C: `B`
+- Enter: `Start`
+- Right Shift: `Select`
+- S: `L`
+- D: `R`
+
+### Gamepad
+
+- D-Pad: `D-Pad`
+- South / bottom face button: `A`
+- East / right face button: `B`
+- Start / Menu: `Start`
+- Back / Select: `Select`
+- Left trigger 2: `L`
+- Right trigger 2: `R`
+
+## Testing
+
+Run the native test suite with:
+
+```powershell
+cd port/pokefirered
+cmake --build out/build/x64-debug --target test
+ctest --test-dir out/build/x64-debug --output-on-failure
+```
+
+Formatting: `cmake --build out/build/x64-debug --target format-native`
+
+## Repository Notes
+
+- `port/pokefirered` contains the native PAL/runtime implementation.
+- The root codebase still provides the decompiled game code and data that the PAL is adapting.
