@@ -5,9 +5,7 @@
 #include "pfr/core.h"
 #include <stdint.h>
 
-#define REG_BASE ((uintptr_t)gPfrIo) // I/O register base address
-
-// I/O register offsets
+#define REG_BASE ((uintptr_t)gPfrIo)
 
 #define REG_OFFSET_DISPCNT 0x0
 #define REG_OFFSET_DISPSTAT 0x4
@@ -186,8 +184,6 @@
 
 #define REG_OFFSET_WAITCNT 0x204
 
-// I/O register addresses
-
 #define REG_ADDR_DISPCNT (REG_BASE + REG_OFFSET_DISPCNT)
 #define REG_ADDR_DISPSTAT (REG_BASE + REG_OFFSET_DISPSTAT)
 #define REG_ADDR_VCOUNT (REG_BASE + REG_OFFSET_VCOUNT)
@@ -349,8 +345,6 @@
 
 #define REG_ADDR_WAITCNT (REG_BASE + REG_OFFSET_WAITCNT)
 
-// I/O registers
-
 #define REG_DISPCNT (*(vu16*)REG_ADDR_DISPCNT)
 #define REG_DISPSTAT (*(vu16*)REG_ADDR_DISPSTAT)
 #define REG_VCOUNT (*(vu16*)REG_ADDR_VCOUNT)
@@ -502,15 +496,12 @@
 
 #define REG_WAITCNT (*(vu16*)REG_ADDR_WAITCNT)
 
-// I/O register fields
-
-// DISPCNT
-#define DISPCNT_MODE_0 0x0000 // BG0: text, BG1: text, BG2: text,   BG3: text
-#define DISPCNT_MODE_1 0x0001 // BG0: text, BG1: text, BG2: affine, BG3: off
-#define DISPCNT_MODE_2 0x0002 // BG0: off,  BG1: off,  BG2: affine, BG3: affine
-#define DISPCNT_MODE_3 0x0003 // Bitmap mode, 240x160, BGR555 color
-#define DISPCNT_MODE_4 0x0004 // Bitmap mode, 240x160, 256 color palette
-#define DISPCNT_MODE_5 0x0005 // Bitmap mode, 160x128, BGR555 color
+#define DISPCNT_MODE_0 0x0000
+#define DISPCNT_MODE_1 0x0001
+#define DISPCNT_MODE_2 0x0002
+#define DISPCNT_MODE_3 0x0003
+#define DISPCNT_MODE_4 0x0004
+#define DISPCNT_MODE_5 0x0005
 #define DISPCNT_OBJ_1D_MAP 0x0040
 #define DISPCNT_FORCED_BLANK 0x0080
 #define DISPCNT_BG0_ON 0x0100
@@ -523,38 +514,29 @@
 #define DISPCNT_WIN1_ON 0x4000
 #define DISPCNT_OBJWIN_ON 0x8000
 
-// DISPSTAT
-#define DISPSTAT_VBLANK 0x0001      // in V-Blank
-#define DISPSTAT_HBLANK 0x0002      // in H-Blank
-#define DISPSTAT_VCOUNT 0x0004      // V-Count match
-#define DISPSTAT_VBLANK_INTR 0x0008 // V-Blank interrupt enabled
-#define DISPSTAT_HBLANK_INTR 0x0010 // H-Blank interrupt enabled
-#define DISPSTAT_VCOUNT_INTR 0x0020 // V-Count interrupt enabled
+#define DISPSTAT_VBLANK 0x0001
+#define DISPSTAT_HBLANK 0x0002
+#define DISPSTAT_VCOUNT 0x0004
+#define DISPSTAT_VBLANK_INTR 0x0008
+#define DISPSTAT_HBLANK_INTR 0x0010
+#define DISPSTAT_VCOUNT_INTR 0x0020
 
-// BGCNT
-#define BGCNT_PRIORITY(n)                                                      \
-  (n) // Values 0 - 3. Lower priority BGs will be drawn on top of higher
-      // priority BGs.
-#define BGCNT_CHARBASE(n)                                                      \
-  ((n) << 2) // Values 0 - 3. Base block for tile pixel data.
+#define BGCNT_PRIORITY(n) (n)
+#define BGCNT_CHARBASE(n) ((n) << 2)
 #define BGCNT_MOSAIC 0x0040
-#define BGCNT_16COLOR 0x0000  // 4 bits per pixel
-#define BGCNT_256COLOR 0x0080 // 8 bits per pixel
-#define BGCNT_SCREENBASE(n)                                                    \
-  ((n) << 8)              // Values 0 - 31. Base block for tile map.
-#define BGCNT_WRAP 0x2000 // Only affects affine BGs. Text BGs wrap by default.
-#define BGCNT_TXT256x256                                                       \
-  0x0000 // Internal screen size size of text mode BG in pixels.
+#define BGCNT_16COLOR 0x0000
+#define BGCNT_256COLOR 0x0080
+#define BGCNT_SCREENBASE(n) ((n) << 8)
+#define BGCNT_WRAP 0x2000
+#define BGCNT_TXT256x256 0x0000
 #define BGCNT_TXT512x256 0x4000
 #define BGCNT_TXT256x512 0x8000
 #define BGCNT_TXT512x512 0xC000
-#define BGCNT_AFF128x128                                                       \
-  0x0000 // Internal screen size size of affine mode BG in pixels.
+#define BGCNT_AFF128x128 0x0000
 #define BGCNT_AFF256x256 0x4000
 #define BGCNT_AFF512x512 0x8000
 #define BGCNT_AFF1024x1024 0xC000
 
-// WININ/OUT
 #define WININ_WIN0_BG0 (1 << 0)
 #define WININ_WIN0_BG1 (1 << 1)
 #define WININ_WIN0_BG2 (1 << 2)
@@ -599,8 +581,6 @@
 #define WIN_RANGE(a, b) (((a) << 8) | (b))
 #define WIN_RANGE2(a, b) ((b) | ((a) << 8))
 
-// BLDCNT
-// Bits 0-5 select layers for the 1st target
 #define BLDCNT_TGT1_BG0 (1 << 0)
 #define BLDCNT_TGT1_BG1 (1 << 1)
 #define BLDCNT_TGT1_BG2 (1 << 2)
@@ -610,15 +590,10 @@
 #define BLDCNT_TGT1_OBJ (1 << 4)
 #define BLDCNT_TGT1_BD (1 << 5)
 #define BLDCNT_TGT1_ALL (BLDCNT_TGT1_BG_ALL | BLDCNT_TGT1_OBJ | BLDCNT_TGT1_BD)
-// Bits 6-7 select the special effect
-#define BLDCNT_EFFECT_NONE (0 << 6) // no special effect
-#define BLDCNT_EFFECT_BLEND                                                    \
-  (1 << 6) // 1st+2nd targets mixed (controlled by BLDALPHA)
-#define BLDCNT_EFFECT_LIGHTEN                                                  \
-  (2 << 6) // 1st target becomes whiter (controlled by BLDY)
-#define BLDCNT_EFFECT_DARKEN                                                   \
-  (3 << 6) // 1st target becomes blacker (controlled by BLDY)
-// Bits 8-13 select layers for the 2nd target
+#define BLDCNT_EFFECT_NONE (0 << 6)
+#define BLDCNT_EFFECT_BLEND (1 << 6)
+#define BLDCNT_EFFECT_LIGHTEN (2 << 6)
+#define BLDCNT_EFFECT_DARKEN (3 << 6)
 #define BLDCNT_TGT2_BG0 (1 << 8)
 #define BLDCNT_TGT2_BG1 (1 << 9)
 #define BLDCNT_TGT2_BG2 (1 << 10)
@@ -629,11 +604,9 @@
 #define BLDCNT_TGT2_BD (1 << 13)
 #define BLDCNT_TGT2_ALL (BLDCNT_TGT2_BG_ALL | BLDCNT_TGT2_OBJ | BLDCNT_TGT2_BD)
 
-// BLDALPHA
 #define BLDALPHA_BLEND(target1, target2) (((target2) << 8) | (target1))
 #define BLDALPHA_BLEND2(target1, target2) ((target1) | ((target2) << 8))
 
-// SOUNDCNT_H
 #define SOUND_CGB_MIX_QUARTER 0x0000
 #define SOUND_CGB_MIX_HALF 0x0001
 #define SOUND_CGB_MIX_FULL 0x0002
@@ -653,14 +626,12 @@
 #define SOUND_B_TIMER_1 0x4000
 #define SOUND_B_FIFO_RESET 0x8000
 
-// SOUNDCNT_X
 #define SOUND_1_ON 0x0001
 #define SOUND_2_ON 0x0002
 #define SOUND_3_ON 0x0004
 #define SOUND_4_ON 0x0008
 #define SOUND_MASTER_ENABLE 0x0080
 
-// DMA
 #define DMA_DEST_INC 0x0000
 #define DMA_DEST_DEC 0x0020
 #define DMA_DEST_FIXED 0x0040
@@ -680,7 +651,6 @@
 #define DMA_INTR_ENABLE 0x4000
 #define DMA_ENABLE 0x8000
 
-// timer
 #define TIMER_1CLK 0x00
 #define TIMER_64CLK 0x01
 #define TIMER_256CLK 0x02
@@ -688,26 +658,25 @@
 #define TIMER_INTR_ENABLE 0x40
 #define TIMER_ENABLE 0x80
 
-// serial
-#define SIO_ID 0x0030 // Communication ID
+#define SIO_ID 0x0030
 
-#define SIO_8BIT_MODE 0x0000  // Normal 8-bit communication mode
-#define SIO_32BIT_MODE 0x1000 // Normal 32-bit communication mode
-#define SIO_MULTI_MODE 0x2000 // Multi-player communication mode
-#define SIO_UART_MODE 0x3000  // UART communication mode
+#define SIO_8BIT_MODE 0x0000
+#define SIO_32BIT_MODE 0x1000
+#define SIO_MULTI_MODE 0x2000
+#define SIO_UART_MODE 0x3000
 
-#define SIO_9600_BPS 0x0000   // baud rate   9600 bps
-#define SIO_38400_BPS 0x0001  //            38400 bps
-#define SIO_57600_BPS 0x0002  //            57600 bps
-#define SIO_115200_BPS 0x0003 //           115200 bps
+#define SIO_9600_BPS 0x0000
+#define SIO_38400_BPS 0x0001
+#define SIO_57600_BPS 0x0002
+#define SIO_115200_BPS 0x0003
 
-#define SIO_MULTI_SI 0x0004 // Multi-player communication SI terminal
-#define SIO_MULTI_SD 0x0008 //                            SD terminal
+#define SIO_MULTI_SI 0x0004
+#define SIO_MULTI_SD 0x0008
 #define SIO_MULTI_BUSY 0x0080
 
-#define SIO_ERROR 0x0040  // Detect error
-#define SIO_START 0x0080  // Start transfer
-#define SIO_ENABLE 0x0080 // Enable SIO
+#define SIO_ERROR 0x0040
+#define SIO_START 0x0080
+#define SIO_ENABLE 0x0080
 
 #define SIO_INTR_ENABLE 0x4000
 
@@ -716,7 +685,6 @@
 #define SIO_MULTI_DI_SHIFT 3
 #define SIO_MULTI_DI_MASK 0x1
 
-// keys
 #define A_BUTTON 0x0001
 #define B_BUTTON 0x0002
 #define SELECT_BUTTON 0x0004
@@ -734,7 +702,6 @@
 #define DPAD_ANY 0x00F0
 #define JOY_EXCL_DPAD 0x030F
 
-// interrupt flags
 #define INTR_FLAG_VBLANK (1 << 0)
 #define INTR_FLAG_HBLANK (1 << 1)
 #define INTR_FLAG_VCOUNT (1 << 2)
@@ -750,7 +717,6 @@
 #define INTR_FLAG_KEYPAD (1 << 12)
 #define INTR_FLAG_GAMEPAK (1 << 13)
 
-// WAITCNT
 #define WAITCNT_SRAM_4 (0 << 0)
 #define WAITCNT_SRAM_3 (1 << 0)
 #define WAITCNT_SRAM_2 (2 << 0)

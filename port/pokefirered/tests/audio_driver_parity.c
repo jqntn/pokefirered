@@ -19,7 +19,8 @@
 #include "pfr/m4a_1_host.h"
 
 extern void* const gMPlayJumpTableTemplate[];
-extern void SoundMainBTM(void* x);
+extern void
+SoundMainBTM(void* x);
 extern void
 SoundMainRAM_EnvelopeStep(struct SoundInfo* soundInfo);
 extern void

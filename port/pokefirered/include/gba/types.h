@@ -49,9 +49,9 @@ typedef volatile struct BgCnt vBgCnt;
 
 struct PlttData
 {
-  u16 r : 5; // red
-  u16 g : 5; // green
-  u16 b : 5; // blue
+  u16 r : 5;
+  u16 g : 5;
+  u16 b : 5;
   u16 unused_15 : 1;
 };
 
@@ -63,18 +63,18 @@ struct PlttData
 struct OamData
 {
   /*0x00*/ u32 y : 8;
-  /*0x01*/ u32 affineMode : 2; // 0x1, 0x2 -> 0x4
-  u32 objMode : 2;             // 0x4, 0x8 -> 0xC
-  u32 mosaic : 1;              // 0x10
-  u32 bpp : 1;                 // 0x20
-  u32 shape : 2;               // 0x40, 0x80 -> 0xC0
+  /*0x01*/ u32 affineMode : 2;
+  u32 objMode : 2;
+  u32 mosaic : 1;
+  u32 bpp : 1;
+  u32 shape : 2;
 
   /*0x02*/ u32 x : 9;
-  u32 matrixNum : 5; // bits 3/4 are h-flip/v-flip if not in affine mode
-  u32 size : 2;      // 0x4000, 0x8000 -> 0xC000
+  u32 matrixNum : 5;
+  u32 size : 2;
 
-  /*0x04*/ u16 tileNum : 10; // 0x3FF
-  u16 priority : 2;          // 0x400, 0x800 -> 0xC00
+  /*0x04*/ u16 tileNum : 10;
+  u16 priority : 2;
   u16 paletteNum : 4;
   /*0x06*/ u16 affineParam;
 };
@@ -154,30 +154,28 @@ struct ObjAffineSrcData
   u16 rotation;
 };
 
-// Multi-player SIO Control Structure
 struct SioMultiCnt
 {
-  u16 baudRate : 2; // baud rate
-  u16 si : 1;       // SI terminal
-  u16 sd : 1;       // SD terminal
-  u16 id : 2;       // ID
-  u16 error : 1;    // error flag
-  u16 enable : 1;   // SIO enable
+  u16 baudRate : 2;
+  u16 si : 1;
+  u16 sd : 1;
+  u16 id : 2;
+  u16 error : 1;
+  u16 enable : 1;
   u16 unused_11_8 : 4;
-  u16 mode : 2;       // communication mode (should equal 2)
-  u16 intrEnable : 1; // IRQ enable
+  u16 mode : 2;
+  u16 intrEnable : 1;
   u16 unused_15 : 1;
-  u16 data; // data
+  u16 data;
 };
 
-#define ST_SIO_MULTI_MODE 2 // Multi-player communication mode
+#define ST_SIO_MULTI_MODE 2
 
-// baud rate
-#define ST_SIO_9600_BPS 0   //   9600 bps
-#define ST_SIO_38400_BPS 1  //  38400 bps
-#define ST_SIO_57600_BPS 2  //  57600 bps
-#define ST_SIO_115200_BPS 3 // 115200 bps
+#define ST_SIO_9600_BPS 0
+#define ST_SIO_38400_BPS 1
+#define ST_SIO_57600_BPS 2
+#define ST_SIO_115200_BPS 3
 
-#endif // GUARD_GBA_TYPES_H
+#endif
 
-#endif // PFR_SHADOW_GBA_TYPES_H
+#endif

@@ -1,15 +1,3 @@
-/*
- * Port-compatible global.h
- *
- * This replaces the original include/global.h for the port build.
- * It includes:
- *   1. The port's config.h (which defines NDEBUG, FIRERED, ENGLISH, etc.)
- *   2. The port's GBA shim headers (gba/gba.h)
- *   3. The original repo's constants headers (via relative paths)
- *   4. MSVC-compatible attribute macros
- *   5. INCBIN_* / _() / __() stubs
- *   6. All the macros and type definitions from the original global.h
- */
 #ifndef GUARD_GLOBAL_H
 #define GUARD_GLOBAL_H
 
@@ -19,8 +7,6 @@
 
 #include <string.h>
 
-/* ---- Original repo constants ------------------------------------------- */
-/* constants/global.h is already included by config.h, so skip it here.     */
 #include "../../../include/constants/easy_chat.h"
 #include "../../../include/constants/flags.h"
 #include "../../../include/constants/pokedex.h"
@@ -28,21 +14,16 @@
 #include "../../../include/constants/species.h"
 #include "../../../include/constants/vars.h"
 
-/* ---- Compiler-compat --------------------------------------------------- */
-
-/* Prevent cross-jump optimization — no-op on the port. */
 #define BLOCK_CROSS_JUMP
 
-/* Decompilation helpers — no-ops on the port. */
 #define asm_comment(x)
 #define asm_unified(x)
 
 #if defined(_MSC_VER) && __STDC_VERSION__ < 202311L
-/* MSVC doesn't support GNU asm keyword in C mode. */
+/* MSVC C mode lacks the GNU asm keyword. */
 #define asm __noop
 #endif
 
-/* ---- INCBIN / preproc stubs -------------------------------------------- */
 #define _(x) (x)
 #define __(x) (x)
 #define INCBIN(...) { 0, 0, 0, 0 }
@@ -53,16 +34,13 @@
 #define INCBIN_S16 INCBIN
 #define INCBIN_S32 INCBIN
 
-/* ---- __attribute__ compat for MSVC ------------------------------------- */
 #if defined(_MSC_VER)
 #define __attribute__(x)
-/* Allow zero-length arrays (MSVC extension warning suppressed elsewhere).  */
 #pragma warning(disable : 4200) /* zero-sized array in struct */
 #pragma warning(disable : 4201) /* nameless struct/union */
 #pragma warning(disable : 4214) /* bit field types other than int */
 #endif
 
-/* ---- Utility macros (from original global.h) --------------------------- */
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 #define NELEMS(array) ARRAY_COUNT(array)
 
@@ -73,7 +51,6 @@
     b = temp;                                                                  \
   }
 
-/* Fixed-point conversions */
 #define Q_8_8(n) ((s16)((n) * 256))
 #define Q_8_8_TO_INT(n) ((s16)((n) >> 8))
 #define Q_4_12(n) ((s16)((n) * 4096))
@@ -99,7 +76,6 @@
 #define HIHALF(n) (((n) & 0xFFFF0000) >> 16)
 #define LOHALF(n) ((n) & 0xFFFF)
 
-/* Byte read macros */
 #define T1_READ_8(ptr) ((ptr)[0])
 #define T1_READ_16(ptr) ((ptr)[0] | ((ptr)[1] << 8))
 #define T1_READ_32(ptr)                                                        \
@@ -112,10 +88,7 @@
   ((ptr)[0] + ((ptr)[1] << 8) + ((ptr)[2] << 16) + ((ptr)[3] << 24))
 #define T2_READ_PTR(ptr) (void*)T2_READ_32(ptr)
 
-/*
- * TEST_BUTTON — the original uses a GCC statement expression ({ ... }).
- * MSVC does not support this, so use a simple bitwise AND instead.
- */
+/* The original uses a GCC statement expression here; MSVC cannot. */
 #define TEST_BUTTON(field, button) ((field) & (button))
 #define JOY_NEW(button) TEST_BUTTON(gMain.newKeys, button)
 #define JOY_HELD(button) TEST_BUTTON(gMain.heldKeys, button)
@@ -136,17 +109,14 @@ extern u8 gStringVar4[];
 #define NUM_FLAG_BYTES ROUND_BITS_TO_BYTES(FLAGS_COUNT)
 #define NUM_ADDITIONAL_PHRASE_BYTES ROUND_BITS_TO_BYTES(NUM_ADDITIONAL_PHRASES)
 
-/* Variadic argument counting */
 #define NARG_8(...) NARG_8_(_, ##__VA_ARGS__, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #define NARG_8_(_, a, b, c, d, e, f, g, h, N, ...) N
 
 #define CAT(a, b) CAT_(a, b)
 #define CAT_(a, b) a##b
 
-/* Compile-time assert */
 #define STATIC_ASSERT(expr, id) typedef char id[(expr) ? 1 : -1];
 
-/* ---- Coordinate structs ------------------------------------------------ */
 struct Coords8
 {
   s8 x;
@@ -191,15 +161,7 @@ struct Time
   s8 seconds;
 };
 
-/* ---- Forward declarations for heavy game types ------------------------- */
-/*
- * The original global.h defines SaveBlock1, SaveBlock2, and many other huge
- * structs inline.  For now the port forward-declares them and provides the
- * extern pointers that game code expects.  Full definitions will be added
- * as more game files are integrated.
- */
-
-/* Minimal padded structs for compilation */
+/* Partial SaveBlock layouts until the full structs are ported. */
 struct SaveBlock1
 {
   u8 _pad_0[0x9FC];
@@ -232,11 +194,8 @@ extern struct SaveBlock2* gSaveBlock2Ptr;
 
 #include "main.h"
 
-/* ---- Additional constant headers that original global.h pulls in ------- */
 #include "../../../include/constants/game_stat.h"
 
-/* ---- Additional headers that the original global.h chains to ------------ */
-/* Port-specific shims can shadow repo headers via include path order.       */
 #include "fame_checker.h"
 #include "global.berry.h"
 #include "global.fieldmap.h"

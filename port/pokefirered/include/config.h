@@ -1,23 +1,10 @@
-/*
- * Port-compatible config.h
- *
- * The original config.h circularly includes global.h.  The port breaks this
- * cycle by defining the needed macros directly and NOT including global.h from
- * here.  global.h will include this file instead of the original config.h.
- */
 #ifndef PFR_CONFIG_H
 #define PFR_CONFIG_H
 
-/* ---- Build-mode flags -------------------------------------------------- */
-/* The port always compiles with NDEBUG so that AGB asserts become no-ops
-   (the port's isagbprint.h already stubs them). */
 #ifndef NDEBUG
 #define NDEBUG
 #endif
 
-/* MODERN is already defined in gba/defines.h (set to 1). */
-
-/* MODERN implies BUGFIX and UBFIX */
 #ifndef BUGFIX
 #define BUGFIX
 #endif
@@ -25,7 +12,6 @@
 #define UBFIX
 #endif
 
-/* ---- Game version ------------------------------------------------------ */
 #ifndef FIRERED
 #define FIRERED
 #endif
@@ -33,7 +19,7 @@
 #define ENGLISH
 #endif
 
-#include "../../../include/constants/global.h" /* VERSION_FIRE_RED, LANGUAGE_ENGLISH, etc. */
+#include "../../../include/constants/global.h"
 
 #define GAME_VERSION VERSION_FIRE_RED
 
@@ -43,7 +29,6 @@
 
 #define UNITS_IMPERIAL
 
-/* ---- Log handler (no-ops, but keep defines so isagbprint.h compiles) --- */
 #define PRETTY_PRINT_OFF 0
 #define PRETTY_PRINT_MINI_PRINTF 1
 #define PRETTY_PRINT_LIBC 2

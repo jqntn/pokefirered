@@ -1,7 +1,3 @@
-/*
- * Integration test — verifies that original game source files link correctly
- * and produce expected results when called through the port shim headers.
- */
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -46,7 +42,6 @@ test_random(void)
   assert(Random() == b);
 }
 
-/* Provide the gHeap symbol expected by malloc.h */
 static u8 sTestHeap[0x4000];
 
 static void
@@ -64,7 +59,6 @@ test_malloc_alloc_free(void)
   assert(p2 != NULL);
   assert(p1 != p2);
 
-  /* AllocZeroed should produce zeros. */
   {
     u8* bytes = (u8*)p2;
     size_t i;
@@ -84,7 +78,7 @@ static void
 test_string_util(void)
 {
   u8 buffer[32];
-  const u8 testString[] = { 0xBB, 0xCC, 0xDD, 0xFF }; /* "Poké" */
+  const u8 testString[] = { 0xBB, 0xCC, 0xDD, 0xFF };
 
   assert(StringLength(testString) == 3);
 

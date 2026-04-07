@@ -15,4 +15,4 @@
 #include "text.h"
 #include "window.h"
 
-#endif // GUARD_GFLIB_H
+#endif

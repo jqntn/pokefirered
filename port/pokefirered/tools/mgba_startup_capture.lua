@@ -1,24 +1,3 @@
--- mGBA startup capture helper for ROM-vs-port comparisons.
---
--- Usage from the mGBA scripting console after loading the ROM:
---   local capture = dofile([[C:\path\to\mgba_startup_capture.lua]])
---   capture.run_manifest(
---     [[C:\path\to\startup_frame_manifest.txt]],
---     [[C:\temp\fr-rom-startup]])
---
--- Optional auto-START input:
---   capture.run_manifest(
---     [[C:\path\to\startup_frame_manifest.txt]],
---     [[C:\temp\fr-rom-startup]],
---     { auto_press_start_frames = { 1860, 1880, 1900 } })
---
--- Optional autorun:
---   PFR_STARTUP_CAPTURE_ARGS = {
---     manifest = [[C:\path\to\startup_frame_manifest.txt]],
---     output_dir = [[C:\temp\fr-rom-startup]],
---   }
---   dofile([[C:\path\to\mgba_startup_capture.lua]])
-
 local PfrStartupCapture = {}
 
 local PATH_SEPARATOR = package.config:sub(1, 1)
