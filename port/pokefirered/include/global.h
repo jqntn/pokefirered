@@ -195,7 +195,10 @@ extern struct SaveBlock2* gSaveBlock2Ptr;
 
 #include "fame_checker.h"
 #include "global.berry.h"
-#include "global.fieldmap.h"
+
+struct ObjectEvent;
+struct ObjectEventTemplate;
+
 #include "pokemon.h"
 
 #endif
