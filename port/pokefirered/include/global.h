@@ -159,7 +159,6 @@ struct Time
   s8 seconds;
 };
 
-/* Partial SaveBlock layouts until the full structs are ported. */
 struct SaveBlock1
 {
   u8 _pad_0[0x9FC];

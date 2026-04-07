@@ -14,7 +14,6 @@
 #define CgbSound pfr_unused_CgbSound
 
 #if !defined(_MSC_VER)
-/* Host builds cannot assemble the GBA-only swi stub here. */
 #define asm(...) ((void)0)
 #endif
 
