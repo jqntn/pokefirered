@@ -6,7 +6,6 @@
 #include "global.h"
 #include "main.h"
 #include "pfr/core.h"
-#include "pfr/demo.h"
 #include "task.h"
 
 enum
@@ -198,7 +197,7 @@ pfr_demo_boot(void)
   pfr_update_status();
 }
 
-void
+static void
 pfr_demo_run_frame(void)
 {
   if ((gMain.heldKeys & DPAD_LEFT) != 0 && sSpriteX > 0) {

@@ -7,11 +7,15 @@
 #include "gpu_regs.h"
 #include "main.h"
 #include "pfr/core.h"
-#include "pfr/demo.h"
 #include "pfr/main_runtime.h"
 #include "pfr/renderer.h"
 #include "pfr/storage.h"
 #include "task.h"
+
+void
+pfr_demo_boot(void);
+void
+pfr_game_boot(void);
 
 void
 MapMusicMain(void);

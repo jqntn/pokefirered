@@ -18,7 +18,4 @@ pfr_main_on_vcount(void);
 void
 pfr_main_on_vblank(void);
 
-void
-pfr_game_boot(void);
-
 #endif

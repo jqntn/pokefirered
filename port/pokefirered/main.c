@@ -1,4 +1,5 @@
-#include "pfr/platform.h"
+int
+pfr_platform_main(int argc, char** argv);
 
 int
 main(int argc, char** argv)
