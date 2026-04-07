@@ -193,7 +193,6 @@ extern struct SaveBlock2* gSaveBlock2Ptr;
 
 #include "../../../include/constants/game_stat.h"
 
-#include "fame_checker.h"
 #include "global.berry.h"
 
 struct ObjectEvent;
