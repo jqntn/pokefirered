@@ -97,7 +97,8 @@ function(pfr_define_native_runtime_targets)
   target_include_directories(
     pfr_game
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../src)
   target_compile_definitions(
     pfr_game
     PRIVATE MODERN=1

@@ -1,23 +1,8 @@
-#ifndef GUARD_GPU_REGS_H
-#define GUARD_GPU_REGS_H
+#ifndef PFR_SHADOW_GPU_REGS_H
+#define PFR_SHADOW_GPU_REGS_H
 
-#include "gba/gba.h"
+#include "global.h"
 
-void
-InitGpuRegManager(void);
-void
-CopyBufferedValuesToGpuRegs(void);
-void
-SetGpuReg(u8 regOffset, u16 value);
-u16
-GetGpuReg(u8 regOffset);
-void
-SetGpuRegBits(u8 regOffset, u16 mask);
-void
-ClearGpuRegBits(u8 regOffset, u16 mask);
-void
-EnableInterrupts(u16 mask);
-void
-DisableInterrupts(u16 mask);
+#include "../../../include/gpu_regs.h"
 
 #endif

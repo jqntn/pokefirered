@@ -1,6 +1,7 @@
 #ifndef PFR_STUB_MALLOC_H
 #define PFR_STUB_MALLOC_H
 
+#include "global.h"
 #include "pfr/core.h"
 
 #include "../../../include/malloc.h"
