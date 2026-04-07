@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "dma3.h"
+#include "global.h"
 #include "gpu_regs.h"
 #include "main.h"
 #include "pfr/core.h"

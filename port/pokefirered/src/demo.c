@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "global.h"
 #include "main.h"
 #include "pfr/core.h"
 #include "pfr/demo.h"
