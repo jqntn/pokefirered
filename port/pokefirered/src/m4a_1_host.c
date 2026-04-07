@@ -14,9 +14,9 @@
 #include "gba/io_reg.h"
 #include "gba/m4a_internal.h"
 #include "global.h"
-#include "pfr/m4a_1_host.h"
 #include "m4a.h"
 #include "main.h"
+#include "pfr/m4a_1_host.h"
 
 extern const u8 gCgb3Vol[];
 
@@ -401,8 +401,7 @@ CgbSound(void)
             *nrx1ptr = (u8)channels->length;
             *nrx3ptr = (u8)((u32)(uintptr_t)channels->wavePointer << 3);
           init_env_step_time_dir:
-            envelopeStepTimeAndDir =
-              channels->attack + CGB_NRx2_ENV_DIR_INC;
+            envelopeStepTimeAndDir = channels->attack + CGB_NRx2_ENV_DIR_INC;
             if (channels->length != 0) {
               channels->n4 = 0x40;
             } else {
@@ -436,8 +435,7 @@ CgbSound(void)
       if ((s8)(channels->release & mask) != 0) {
         channels->modify |= CGB_CHANNEL_MO_VOL;
         if (ch != 3) {
-          envelopeStepTimeAndDir =
-            channels->release | CGB_NRx2_ENV_DIR_DEC;
+          envelopeStepTimeAndDir = channels->release | CGB_NRx2_ENV_DIR_DEC;
         }
         goto envelope_step_complete;
       } else {
@@ -511,8 +509,7 @@ CgbSound(void)
               channels->modify |= CGB_CHANNEL_MO_VOL;
               channels->envelopeVolume = channels->envelopeGoal;
               if (ch != 3) {
-                envelopeStepTimeAndDir =
-                  channels->decay | CGB_NRx2_ENV_DIR_DEC;
+                envelopeStepTimeAndDir = channels->decay | CGB_NRx2_ENV_DIR_DEC;
               }
             } else {
               goto envelope_sustain_start;
@@ -548,8 +545,8 @@ CgbSound(void)
       } else {
         *nrx3ptr = (u8)((*nrx3ptr & 0x08) | channels->frequency);
       }
-      channels->n4 = (channels->n4 & 0xC0) +
-                     (*((u8*)(&channels->frequency) + 1));
+      channels->n4 =
+        (channels->n4 & 0xC0) + (*((u8*)(&channels->frequency) + 1));
       *nrx4ptr = (s8)(channels->n4 & mask);
     }
 
@@ -1171,21 +1168,26 @@ m4aSoundMain(void)
 void
 m4aSoundVSync(void)
 {
-  const u32 dmaReload =
-    (u32)(((u32)(DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC |
-                 DMA_DEST_FIXED)
-           << 16) |
-          4u);
+  const u32 dmaReload = (u32)(((u32)(DMA_ENABLE | DMA_START_NOW | DMA_32BIT |
+                                     DMA_SRC_INC | DMA_DEST_FIXED)
+                               << 16) |
+                              4u);
 
   if (gSoundInfo.ident < ID_NUMBER || gSoundInfo.ident > ID_NUMBER + 1) {
     return;
   }
 
-  if (--gSoundInfo.pcmDmaCounter > 0) {
+  if (gSoundInfo.pcmDmaPeriod == 0) {
     return;
   }
 
-  gSoundInfo.pcmDmaCounter = gSoundInfo.pcmDmaPeriod;
+  if (gSoundInfo.pcmDmaCounter == 0) {
+    gSoundInfo.pcmDmaCounter = gSoundInfo.pcmDmaPeriod;
+  } else if (--gSoundInfo.pcmDmaCounter > 0) {
+    return;
+  } else {
+    gSoundInfo.pcmDmaCounter = gSoundInfo.pcmDmaPeriod;
+  }
 
   if (REG_DMA1CNT & (DMA_REPEAT << 16)) {
     REG_DMA1CNT = dmaReload;
@@ -1219,11 +1221,10 @@ m4aSoundVSyncOn(void)
 void
 m4aSoundVSyncOff(void)
 {
-  const u32 dmaReload =
-    (u32)(((u32)(DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC |
-                 DMA_DEST_FIXED)
-           << 16) |
-          4u);
+  const u32 dmaReload = (u32)(((u32)(DMA_ENABLE | DMA_START_NOW | DMA_32BIT |
+                                     DMA_SRC_INC | DMA_DEST_FIXED)
+                               << 16) |
+                              4u);
 
   if (gSoundInfo.ident >= ID_NUMBER && gSoundInfo.ident <= ID_NUMBER + 1) {
     gSoundInfo.ident += 10;

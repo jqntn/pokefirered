@@ -219,9 +219,8 @@ test_mplay_extender_patches_expected_slots(void)
   assert(gMPlayJumpTable[33] == (MPlayFunc)TrkVolPitSet);
   assert(gMPlayJumpTable[34] == (MPlayFunc)RealClearChain);
   assert(gMPlayJumpTable[35] == (MPlayFunc)SoundMainBTM);
-  assert(REG_SOUNDCNT_X ==
-         (SOUND_MASTER_ENABLE | SOUND_4_ON | SOUND_3_ON | SOUND_2_ON |
-          SOUND_1_ON));
+  assert(REG_SOUNDCNT_X == (SOUND_MASTER_ENABLE | SOUND_4_ON | SOUND_3_ON |
+                            SOUND_2_ON | SOUND_1_ON));
   assert(REG_NR12 == 0x08);
   assert(REG_NR22 == 0x08);
   assert(REG_NR42 == 0x08);
@@ -318,12 +317,11 @@ test_pointer_control_commands(void)
   assert(track.cmdPtr == &cry->cont[0]);
 
   mplayInfo.songHeader = (struct SongHeader*)relocationFixture.header;
-  track.cmdPtr = (u8*)(relocationFixture.track->data +
-                       relocationFixture.relocation->offset);
+  track.cmdPtr =
+    (u8*)(relocationFixture.track->data + relocationFixture.relocation->offset);
   ply_goto(&mplayInfo, &track);
-  assert(track.cmdPtr ==
-         (u8*)(relocationFixture.track->data +
-               relocationFixture.relocation->target_offset));
+  assert(track.cmdPtr == (u8*)(relocationFixture.track->data +
+                               relocationFixture.relocation->target_offset));
 }
 
 static void
@@ -430,12 +428,7 @@ test_soundmainram_envelope_step(void)
   struct SoundInfo soundInfo = { 0 };
   struct SoundChannel* chan = &soundInfo.chans[0];
   TestWaveData wave = {
-    0,
-    0xC000u,
-    0,
-    1,
-    4,
-    { 10, 20, 30, 40 },
+    0, 0xC000u, 0, 1, 4, { 10, 20, 30, 40 },
   };
 
   soundInfo.maxChans = 1;
@@ -514,12 +507,7 @@ test_driver_pcm_channel_loop_mix(void)
   struct SoundInfo soundInfo = { 0 };
   struct SoundChannel* chan = &soundInfo.chans[0];
   TestWaveData wave = {
-    0,
-    0,
-    0,
-    1,
-    4,
-    { 32, 64, 96, 127 },
+    0, 0, 0, 1, 4, { 32, 64, 96, 127 },
   };
   const s8 expected[] = { 31, 63, 95, 126, 63, 95 };
   u32 i;
@@ -541,8 +529,8 @@ test_driver_pcm_channel_loop_mix(void)
     assert(soundInfo.pcmBuffer[PCM_DMA_BUF_SIZE + i] == expected[i]);
   }
   assert(chan->count == 1);
-  assert(chan->statusFlags == (SOUND_CHANNEL_SF_ENV_SUSTAIN |
-                               SOUND_CHANNEL_SF_LOOP));
+  assert(chan->statusFlags ==
+         (SOUND_CHANNEL_SF_ENV_SUSTAIN | SOUND_CHANNEL_SF_LOOP));
 }
 
 static void
@@ -575,6 +563,20 @@ static void
 test_vsync_paths(void)
 {
   u16 repeatMode = DMA_ENABLE | DMA_START_SPECIAL | DMA_32BIT | DMA_REPEAT;
+
+  test_reset_audio_state();
+  gSoundInfo.ident = ID_NUMBER;
+  gSoundInfo.pcmDmaCounter = 0;
+  gSoundInfo.pcmDmaPeriod = 3;
+  REG_DMA1CNT = (u32)DMA_REPEAT << 16;
+  REG_DMA2CNT = (u32)DMA_REPEAT << 16;
+
+  m4aSoundVSync();
+  assert(gSoundInfo.pcmDmaCounter == 3);
+  assert(REG_DMA1CNT_L == 4);
+  assert(REG_DMA2CNT_L == 4);
+  assert(REG_DMA1CNT_H == repeatMode);
+  assert(REG_DMA2CNT_H == repeatMode);
 
   test_reset_audio_state();
   gSoundInfo.ident = ID_NUMBER;

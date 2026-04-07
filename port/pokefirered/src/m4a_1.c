@@ -178,8 +178,7 @@ pfr_audio_prepare_driver_reverb(struct SoundInfo* si,
   }
 
   {
-    s8* prevA =
-      si->pcmDmaCounter == 2 ? &si->pcmBuffer[0] : &fifoA[numSamples];
+    s8* prevA = si->pcmDmaCounter == 2 ? &si->pcmBuffer[0] : &fifoA[numSamples];
     s8* prevB = &si->pcmBuffer[PCM_DMA_BUF_SIZE + (prevA - si->pcmBuffer)];
 
     for (frame = 0; frame < numSamples; frame++) {
@@ -237,8 +236,7 @@ pfr_audio_render_driver_pcm_chunk(struct SoundInfo* si,
         step = 0x800000u;
       } else {
         step = (u32)((u64)si->divFreq * (u64)chan->frequency);
-        sample +=
-          (s32)(((s64)phase * (s64)(nextSample - sample)) >> 23);
+        sample += (s32)(((s64)phase * (s64)(nextSample - sample)) >> 23);
       }
 
       mixA += (sample * chan->envelopeVolumeRight) >> 8;
@@ -1185,9 +1183,9 @@ SoundMain(void)
 
   if (soundInfo->pcmSamplesPerVBlank > 0) {
     if (soundInfo->pcmDmaCounter > 1) {
-      chunkOffset = (u32)(soundInfo->pcmSamplesPerVBlank *
-                          (soundInfo->pcmDmaPeriod -
-                           (soundInfo->pcmDmaCounter - 1)));
+      chunkOffset =
+        (u32)(soundInfo->pcmSamplesPerVBlank *
+              (soundInfo->pcmDmaPeriod - (soundInfo->pcmDmaCounter - 1)));
     }
 
     pfr_audio_render_driver_pcm_chunk(

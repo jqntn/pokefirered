@@ -19,9 +19,9 @@
 #include "malloc.h"
 #include "menu.h"
 #include "new_menu_helpers.h"
+#include "pfr/audio_assets.h"
 #include "pfr/core.h"
 #include "pfr/dma.h"
-#include "pfr/audio_assets.h"
 #include "pfr/main_runtime.h"
 #include "random.h"
 #include "scanline_effect.h"
@@ -394,7 +394,8 @@ test_audio_catalog_import(void)
   assert(gSongTable[MUS_GAME_FREAK].header != NULL);
   assert(gPfrAudioSongAssets[SE_SELECT].tracks != NULL);
   assert(gPfrAudioSongAssets[MUS_GAME_FREAK].tracks != NULL);
-  assert(pfr_audio_song_asset_for_id(SE_SELECT) == &gPfrAudioSongAssets[SE_SELECT]);
+  assert(pfr_audio_song_asset_for_id(SE_SELECT) ==
+         &gPfrAudioSongAssets[SE_SELECT]);
   assert(pfr_audio_song_asset_for_header(gSongTable[SE_SELECT].header) ==
          &gPfrAudioSongAssets[SE_SELECT]);
   assert(gSongTable[SE_SELECT].ms == 2);
